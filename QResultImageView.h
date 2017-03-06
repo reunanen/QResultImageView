@@ -33,6 +33,11 @@ private:
     // The max zoom level depends on the source image size.
     int getMaxZoomLevel() const;
 
+    void limitOffset();
+
+    QPointF screenToSource(const QPointF& screenPoint) const;
+    QPointF sourceToScreen(const QPointF& sourcePoint) const;
+
     QPixmap pixmap;
 
     int zoomLevel = 0;
