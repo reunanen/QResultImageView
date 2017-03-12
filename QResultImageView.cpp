@@ -10,84 +10,14 @@ QResultImageView::QResultImageView(QWidget *parent)
 
 void QResultImageView::setImage(const QImage& image)
 {
-    pixmap.convertFromImage(image);
-    update();
+    source.convertFromImage(image);
+    updateScaledSourceImage();
 }
 
 void QResultImageView::paintEvent(QPaintEvent* event)
 {
-    const int srcFullWidth = pixmap.width();
-    const int srcFullHeight = pixmap.height();
-
-    if (srcFullWidth <= 0 || srcFullHeight <= 0) {
-        return;
-    }
-
-    const QRect r = rect();
-
-    const int dstFullWidth = r.width();
-    const int dstFullHeight = r.height();
-
-    const double imageScaler = getImageScaler();
-
-    const double srcVisibleWidth = dstFullWidth * imageScaler;
-    const double srcVisibleHeight = dstFullHeight * imageScaler;
-
-    const double zoomCenterX = pixmap.width() / 2 - offsetX;
-    const double zoomCenterY = pixmap.height() / 2 - offsetY;
-
-    const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
-    const double srcRight = std::min(static_cast<double>(pixmap.width()), srcLeft + srcVisibleWidth);
-    const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
-    const double srcBottom = std::min(static_cast<double>(pixmap.height()), srcTop + srcVisibleHeight);
-
-    const QPointF dstTopLeft = sourceToScreen(QPointF(srcLeft, srcTop));
-    const QPointF dstBottomRight = sourceToScreen(QPointF(srcRight, srcBottom));
-
-    const QPointF srcTopLeft = screenToSource(dstTopLeft);
-    const QPointF srcBottomRight = screenToSource(dstBottomRight);
-
-    Q_ASSERT(fabs(srcTopLeft.x() - srcLeft) < 1e-6);
-    Q_ASSERT(fabs(srcTopLeft.y() - srcTop) < 1e-6);
-    Q_ASSERT(fabs(srcBottomRight.x() - srcRight) < 1e-6);
-    Q_ASSERT(fabs(srcBottomRight.y() - srcBottom) < 1e-6);
-
-    const auto roundedRect = [](const QPointF& topLeft, const QPointF& bottomRight) {
-        const int x = static_cast<int>(round(topLeft.x()));
-        const int y = static_cast<int>(round(topLeft.y()));
-        const int width = static_cast<int>(round(bottomRight.x() - topLeft.x()));
-        const int height = static_cast<int>(round(bottomRight.y() - topLeft.y()));
-        return QRect(x, y, width, height);
-    };
-
-    const QRect sourceRect = roundedRect(srcTopLeft, srcBottomRight);
-    const QRect destinationRect = roundedRect(dstTopLeft, dstBottomRight);
-
-    QPixmap result;
-    if (sourceRect.width() > 2 * destinationRect.width() || sourceRect.height() > 2 * destinationRect.height()) {
-        // for efficiency, rescale the image before cropping (note that the above criterion is nothing but ad hoc)
-
-        // these two should be approximately equal
-        const double scaleFactorX = destinationRect.width() / static_cast<double>(sourceRect.width());
-        const double scaleFactorY = destinationRect.height() / static_cast<double>(sourceRect.height());
-
-        const int scaledWidth = static_cast<int>(ceil(scaleFactorX * srcFullWidth));
-        const int scaledHeight = static_cast<int>(ceil(scaleFactorY * srcFullHeight));
-
-        const QPixmap scaledSource = pixmap.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
-
-        const int scaledSourceX = static_cast<int>(round(sourceRect.x() * scaleFactorX));
-        const int scaledSourceY = static_cast<int>(round(sourceRect.y() * scaleFactorY));
-
-        result = scaledSource.copy(QRect(scaledSourceX, scaledSourceY, destinationRect.width(), destinationRect.height()));
-    }
-    else {
-        // just crop directly
-        result = pixmap.copy(sourceRect);
-    }
-
     QPainter painter(this);
-    painter.drawPixmap(destinationRect, result);
+    painter.drawPixmap(destinationRect, croppedSource);
 }
 
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
@@ -98,7 +28,7 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
             offsetX += (event->x() - previousMouseX) * imageScaler;
             offsetY += (event->y() - previousMouseY) * imageScaler;
             limitOffset();
-            update();
+            updateCroppedSourceImageAndDestinationRect();
         }
     }
 
@@ -130,20 +60,117 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
 
         limitOffset();
 
-        update();
+        updateScaledSourceImage();
     }
+}
+
+void QResultImageView::resizeEvent(QResizeEvent* event)
+{
+    updateScaledSourceImage();
+}
+
+void QResultImageView::updateScaledSourceImage()
+{
+    const int srcFullWidth = source.width();
+    const int srcFullHeight = source.height();
+
+    const QRect r = rect();
+
+    if (srcFullWidth <= 0 || srcFullHeight <= 0 || r.width() <= 0 || r.height() <= 0) {
+        return;
+    }
+
+    const double scaleFactorX = r.width() / static_cast<double>(srcFullWidth);
+    const double scaleFactorY = r.height() / static_cast<double>(srcFullHeight);
+    const double scaleFactor = std::max(scaleFactorX, scaleFactorY);
+
+    const int scaledWidth = static_cast<int>(ceil(scaleFactor * srcFullWidth));
+    const int scaledHeight = static_cast<int>(ceil(scaleFactor * srcFullHeight));
+
+    scaledSource = source.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+
+    updateCroppedSourceImageAndDestinationRect();
+}
+
+void QResultImageView::updateCroppedSourceImageAndDestinationRect()
+{
+    const double zoomCenterX = source.width() / 2 - offsetX;
+    const double zoomCenterY = source.height() / 2 - offsetY;
+
+    const double srcVisibleWidth = getSourceImageVisibleWidth();
+    const double srcVisibleHeight = getSourceImageVisibleHeigth();
+
+    // these two should be approximately equal
+    const double sourceScaleFactorX = scaledSource.width() / static_cast<double>(source.width());
+    const double sourceScaleFactorY = scaledSource.height() / static_cast<double>(source.height());
+
+    const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
+    const double srcRight = std::min(static_cast<double>(source.width()), srcLeft + srcVisibleWidth);
+    const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
+    const double srcBottom = std::min(static_cast<double>(source.height()), srcTop + srcVisibleHeight);
+
+    const double scaledSourceLeft = srcLeft * sourceScaleFactorX;
+    const double scaledSourceRight = srcRight * sourceScaleFactorX;
+    const double scaledSourceTop = srcTop * sourceScaleFactorY;
+    const double scaledSourceBottom = srcBottom * sourceScaleFactorY;
+
+    const QPointF dstTopLeft = sourceToScreen(QPointF(srcLeft, srcTop));
+    const QPointF dstBottomRight = sourceToScreen(QPointF(srcRight, srcBottom));
+
+    QPointF srcTopLeft = screenToSource(dstTopLeft);
+    QPointF srcBottomRight = screenToSource(dstBottomRight);
+
+    const QPointF scaledSourceTopLeft = QPointF(srcTopLeft.rx() * sourceScaleFactorX, srcTopLeft.ry() * sourceScaleFactorY);
+    const QPointF scaledSourceBottomRight = QPointF(srcBottomRight.rx() * sourceScaleFactorX, srcBottomRight.ry() * sourceScaleFactorY);
+
+    Q_ASSERT(fabs(srcTopLeft.x() - srcLeft) < 1e-6);
+    Q_ASSERT(fabs(srcTopLeft.y() - srcTop) < 1e-6);
+    Q_ASSERT(fabs(srcBottomRight.x() - srcRight) < 1e-6);
+    Q_ASSERT(fabs(srcBottomRight.y() - srcBottom) < 1e-6);
+
+    Q_ASSERT(fabs(scaledSourceTopLeft.x() - scaledSourceLeft) < 1e-6);
+    Q_ASSERT(fabs(scaledSourceTopLeft.y() - scaledSourceTop) < 1e-6);
+    Q_ASSERT(fabs(scaledSourceBottomRight.x() - scaledSourceRight) < 1e-6);
+    Q_ASSERT(fabs(scaledSourceBottomRight.y() - scaledSourceBottom) < 1e-6);
+
+    const auto roundedRect = [](const QPointF& topLeft, const QPointF& bottomRight) {
+        const int x = static_cast<int>(round(topLeft.x()));
+        const int y = static_cast<int>(round(topLeft.y()));
+        const int width = static_cast<int>(round(bottomRight.x() - topLeft.x()));
+        const int height = static_cast<int>(round(bottomRight.y() - topLeft.y()));
+        return QRect(x, y, width, height);
+    };
+
+    const QRect scaledSourceRect = roundedRect(scaledSourceTopLeft, scaledSourceBottomRight);
+    croppedSource = scaledSource.copy(scaledSourceRect);
+
+    destinationRect = roundedRect(dstTopLeft, dstBottomRight);
+
+    update();
+}
+
+double QResultImageView::getSourceImageVisibleWidth() const
+{
+    const QRect r = rect();
+    return r.width() * getImageScaler();
+}
+
+double QResultImageView::getSourceImageVisibleHeigth() const
+{
+    const QRect r = rect();
+    return r.height() * getImageScaler();
 }
 
 double QResultImageView::getDefaultMagnification() const
 {
-    if (pixmap.size().isEmpty()) {
+    if (source.size().isEmpty()) {
         return 1.0;
     }
 
     const QRect r = rect();
 
-    const double magnificationX = pixmap.width() / static_cast<double>(r.width());
-    const double magnificationY = pixmap.height() / static_cast<double>(r.height());
+    const double magnificationX = source.width() / static_cast<double>(r.width());
+    const double magnificationY = source.height() / static_cast<double>(r.height());
     const double magnification = std::max(magnificationX, magnificationY);
 
     return magnification;
@@ -168,21 +195,21 @@ double QResultImageView::getImageScaler() const
 int QResultImageView::getMaxZoomLevel() const
 {
     const int maxZoomLevelMultiplier = 4; // largely empirical
-    return maxZoomLevelMultiplier * std::max(0, std::min(pixmap.width(), pixmap.height()));
+    return maxZoomLevelMultiplier * std::max(0, std::min(source.width(), source.height()));
 }
 
 void QResultImageView::limitOffset()
 {
-    offsetX = std::max(-pixmap.width() / 2.0, std::min(pixmap.width() / 2.0, offsetX));
-    offsetY = std::max(-pixmap.height() / 2.0, std::min(pixmap.height() / 2.0, offsetY));
+    offsetX = std::max(-source.width() / 2.0, std::min(source.width() / 2.0, offsetX));
+    offsetY = std::max(-source.height() / 2.0, std::min(source.height() / 2.0, offsetY));
 }
 
 QPointF QResultImageView::screenToSource(const QPointF& screenPoint) const
 {
     const double imageScaler = getImageScaler();
     const QRect r(rect());
-    qreal sourceX = screenPoint.x() * imageScaler - (r.width() * imageScaler - pixmap.width()) / 2 - offsetX;
-    qreal sourceY = screenPoint.y() * imageScaler - (r.height() * imageScaler - pixmap.height()) / 2 - offsetY;
+    qreal sourceX = screenPoint.x() * imageScaler - (r.width() * imageScaler - source.width()) / 2 - offsetX;
+    qreal sourceY = screenPoint.y() * imageScaler - (r.height() * imageScaler - source.height()) / 2 - offsetY;
     return QPointF(sourceX, sourceY);
 }
 
@@ -190,7 +217,7 @@ QPointF QResultImageView::sourceToScreen(const QPointF& sourcePoint) const
 {
     const double imageScaler = getImageScaler();
     const QRect r(rect());
-    qreal screenX = (r.width() - pixmap.width() / imageScaler) / 2 + (sourcePoint.x() + offsetX) / imageScaler;
-    qreal screenY = (r.height() - pixmap.height() / imageScaler) / 2 + (sourcePoint.y() + offsetY) / imageScaler;
+    qreal screenX = (r.width() - source.width() / imageScaler) / 2 + (sourcePoint.x() + offsetX) / imageScaler;
+    qreal screenY = (r.height() - source.height() / imageScaler) / 2 + (sourcePoint.y() + offsetY) / imageScaler;
     return QPointF(screenX, screenY);
 }

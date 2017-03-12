@@ -16,8 +16,15 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent* event) override;
+    void resizeEvent(QResizeEvent* event) override;
 
 private:
+    void updateScaledSourceImage();
+    void updateCroppedSourceImageAndDestinationRect();
+
+    double getSourceImageVisibleWidth() const;
+    double getSourceImageVisibleHeigth() const;
+
     // The magnification required to fit the full source in the destination window when zoomLevel = 0.
     double getDefaultMagnification() const;
 
@@ -38,7 +45,11 @@ private:
     QPointF screenToSource(const QPointF& screenPoint) const;
     QPointF sourceToScreen(const QPointF& sourcePoint) const;
 
-    QPixmap pixmap;
+    QPixmap source;
+    QPixmap scaledSource;
+    QPixmap croppedSource;
+
+    QRect destinationRect;
 
     int zoomLevel = 0;
     double offsetX = 0;
