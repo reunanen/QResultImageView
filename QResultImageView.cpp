@@ -63,8 +63,31 @@ void QResultImageView::paintEvent(QPaintEvent* event)
     const QRect sourceRect = roundedRect(srcTopLeft, srcBottomRight);
     const QRect destinationRect = roundedRect(dstTopLeft, dstBottomRight);
 
+    QPixmap result;
+    if (sourceRect.width() > 2 * destinationRect.width() || sourceRect.height() > 2 * destinationRect.height()) {
+        // for efficiency, rescale the image before cropping (note that the above criterion is nothing but ad hoc)
+
+        // these two should be approximately equal
+        const double scaleFactorX = destinationRect.width() / static_cast<double>(sourceRect.width());
+        const double scaleFactorY = destinationRect.height() / static_cast<double>(sourceRect.height());
+
+        const int scaledWidth = static_cast<int>(ceil(scaleFactorX * srcFullWidth));
+        const int scaledHeight = static_cast<int>(ceil(scaleFactorY * srcFullHeight));
+
+        const QPixmap scaledSource = pixmap.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+
+        const int scaledSourceX = static_cast<int>(round(sourceRect.x() * scaleFactorX));
+        const int scaledSourceY = static_cast<int>(round(sourceRect.y() * scaleFactorY));
+
+        result = scaledSource.copy(QRect(scaledSourceX, scaledSourceY, destinationRect.width(), destinationRect.height()));
+    }
+    else {
+        // just crop directly
+        result = pixmap.copy(sourceRect);
+    }
+
     QPainter painter(this);
-    painter.drawPixmap(destinationRect, pixmap.copy(sourceRect));
+    painter.drawPixmap(destinationRect, result);
 }
 
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
