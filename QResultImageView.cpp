@@ -12,12 +12,38 @@ void QResultImageView::setImage(const QImage& image)
 {
     source.convertFromImage(image);
     updateScaledSourceImage();
+    update();
+}
+
+void QResultImageView::setResults(const std::vector<Result>& results)
+{
+    this->results = results;
+    updateScaledAndTranslatedResults();
+    update();
+}
+
+void QResultImageView::setImageAndResults(const QImage& image, const Results& results)
+{
+    source.convertFromImage(image);
+    this->results = results;
+
+    updateScaledSourceImage();
+    updateScaledAndTranslatedResults();
+
+    update();
 }
 
 void QResultImageView::paintEvent(QPaintEvent* event)
 {
     QPainter painter(this);
     painter.drawPixmap(destinationRect, croppedSource);
+
+    for (const Result& scaledAndTranslatedResult : scaledAndTranslatedResults) {
+        painter.setPen(scaledAndTranslatedResult.pen);
+        if (!scaledAndTranslatedResult.contour.empty()) {
+            painter.drawPolygon(scaledAndTranslatedResult.contour.data(), static_cast<int>(scaledAndTranslatedResult.contour.size()));
+        }
+    }
 }
 
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
@@ -29,6 +55,8 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
             offsetY += (event->y() - previousMouseY) * imageScaler;
             limitOffset();
             updateCroppedSourceImageAndDestinationRect();
+            updateScaledAndTranslatedResults();
+            update();
         }
     }
 
@@ -61,12 +89,16 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
         limitOffset();
 
         updateScaledSourceImage();
+        updateScaledAndTranslatedResults();
+        update();
     }
 }
 
 void QResultImageView::resizeEvent(QResizeEvent* event)
 {
     updateScaledSourceImage();
+    updateScaledAndTranslatedResults();
+    update();
 }
 
 void QResultImageView::updateScaledSourceImage()
@@ -145,8 +177,24 @@ void QResultImageView::updateCroppedSourceImageAndDestinationRect()
     croppedSource = scaledSource.copy(scaledSourceRect);
 
     destinationRect = roundedRect(dstTopLeft, dstBottomRight);
+}
 
-    update();
+void QResultImageView::updateScaledAndTranslatedResults()
+{
+    scaledAndTranslatedResults.resize(results.size());
+
+    const double imageScaler = getImageScaler();
+
+    for (size_t i = 0, end = results.size(); i < end; ++i) {
+        const Result& result = results[i];
+        Result& scaledAndTranslatedResult = scaledAndTranslatedResults[i];
+
+        scaledAndTranslatedResult.pen = result.pen;
+        scaledAndTranslatedResult.contour.resize(result.contour.size());
+        for (size_t j = 0, end = result.contour.size(); j < end; ++j) {
+            scaledAndTranslatedResult.contour[j] = sourceToScreen(result.contour[j]);
+        }
+    }
 }
 
 double QResultImageView::getSourceImageVisibleWidth() const

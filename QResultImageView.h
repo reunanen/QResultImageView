@@ -2,6 +2,7 @@
 #define QRESULTIMAGEVIEW_H
 
 #include <QWidget>
+#include <qpen.h>
 
 class QResultImageView : public QWidget
 {
@@ -12,6 +13,17 @@ public:
 
     void setImage(const QImage& image);
 
+    struct Result {
+        QPen pen;
+        std::vector<QPointF> contour;
+    };
+
+    typedef std::vector<Result> Results;
+
+    void setResults(const Results& results);
+
+    void setImageAndResults(const QImage& image, const Results& results);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -21,6 +33,8 @@ protected:
 private:
     void updateScaledSourceImage();
     void updateCroppedSourceImageAndDestinationRect();
+
+    void updateScaledAndTranslatedResults();
 
     double getSourceImageVisibleWidth() const;
     double getSourceImageVisibleHeigth() const;
@@ -58,6 +72,9 @@ private:
     bool hasPreviousMouseCoordinates = 0;
     int previousMouseX = 0;
     int previousMouseY = 0;
+
+    Results results;
+    Results scaledAndTranslatedResults;
 };
 
 #endif // QRESULTIMAGEVIEW_H
