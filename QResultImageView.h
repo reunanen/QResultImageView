@@ -32,6 +32,17 @@ public:
 
     void setTransformationMode(TransformationMode transformationMode);
 
+    void setResultsVisible(bool visible);
+
+    void resetZoomAndPan();
+
+    // Has the user panned the view, or zoomed in or out? False if not.
+    bool isDefaultZoomAndPan() const;
+
+signals:
+    void panned();
+    void zoomed();
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
@@ -96,6 +107,8 @@ private:
 
     TransformationMode transformationMode = DelayedSmoothTransformationWhenZoomedOut;
     int smoothTransformationPendingCounter = 0;
+
+    bool resultsVisible = true;
 };
 
 #endif // QRESULTIMAGEVIEW_H

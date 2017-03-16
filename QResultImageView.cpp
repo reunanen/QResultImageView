@@ -55,6 +55,8 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
             limitOffset();
             updateCroppedSourceImageAndDestinationRect();
             update();
+
+            emit panned();
         }
     }
 
@@ -88,6 +90,8 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
 
         redrawEverything(getInitialTransformationMode());
         considerActivatingSmoothTransformationTimer();
+
+        emit zoomed();
     }
 }
 
@@ -139,27 +143,27 @@ void QResultImageView::updateScaledSourceImage(Qt::TransformationMode transforma
 
 void QResultImageView::drawResultsOnScaledSourceImage()
 {
-    if (results.empty()) {
+    if (results.empty() || !resultsVisible) {
         scaledSourceWithResults = scaledSource;
     }
     else {
         scaledSourceWithResults = scaledSource.copy();
-    }
 
-    const double scaleFactor = getScaleFactor();
+        const double scaleFactor = getScaleFactor();
 
-    QPainter resultPainter(&scaledSourceWithResults);
-    for (const Result& result : results) {
-        resultPainter.setPen(result.pen);
-        if (!result.contour.empty()) {
-            std::vector<QPoint> scaledContour(result.contour.size());
-            for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
-                const QPointF& point = result.contour[i];
-                QPoint& scaledPoint = scaledContour[i];
-                scaledPoint.setX(static_cast<int>(std::round(point.x() * scaleFactor)));
-                scaledPoint.setY(static_cast<int>(std::round(point.y() * scaleFactor)));
+        QPainter resultPainter(&scaledSourceWithResults);
+        for (const Result& result : results) {
+            resultPainter.setPen(result.pen);
+            if (!result.contour.empty()) {
+                std::vector<QPoint> scaledContour(result.contour.size());
+                for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
+                    const QPointF& point = result.contour[i];
+                    QPoint& scaledPoint = scaledContour[i];
+                    scaledPoint.setX(static_cast<int>(std::round(point.x() * scaleFactor)));
+                    scaledPoint.setY(static_cast<int>(std::round(point.y() * scaleFactor)));
+                }
+                resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
             }
-            resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
         }
     }
 }
@@ -331,4 +335,31 @@ void QResultImageView::considerActivatingSmoothTransformationTimer()
         ++smoothTransformationPendingCounter;
         QTimer::singleShot(100, this, SLOT(performSmoothTransformation()));
     }
+}
+
+void QResultImageView::setResultsVisible(bool visible)
+{
+    if (resultsVisible != visible) {
+        resultsVisible = visible;
+
+        if (!results.empty()) {
+            drawResultsOnScaledSourceImage();
+            updateCroppedSourceImageAndDestinationRect();
+            update();
+        }
+    }
+}
+
+void QResultImageView::resetZoomAndPan()
+{
+    offsetX = 0;
+    offsetY = 0;
+    zoomLevel = 0;
+
+    redrawEverything(getEventualTransformationMode());
+}
+
+bool QResultImageView::isDefaultZoomAndPan() const
+{
+    return offsetX == 0 && offsetY == 0 && zoomLevel == 0;
 }
