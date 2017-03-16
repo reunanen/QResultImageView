@@ -112,12 +112,10 @@ void QResultImageView::updateScaledSourceImage()
         return;
     }
 
-    const double scaleFactorX = r.width() / static_cast<double>(srcFullWidth);
-    const double scaleFactorY = r.height() / static_cast<double>(srcFullHeight);
-    const double scaleFactor = std::max(scaleFactorX, scaleFactorY);
+    const double imageScaler = getImageScaler();
 
-    const int scaledWidth = static_cast<int>(ceil(scaleFactor * srcFullWidth));
-    const int scaledHeight = static_cast<int>(ceil(scaleFactor * srcFullHeight));
+    const int scaledWidth = static_cast<int>(ceil(srcFullWidth / std::max(1.0, imageScaler)));
+    const int scaledHeight = static_cast<int>(ceil(srcFullHeight / std::max(1.0, imageScaler)));
 
     scaledSource = source.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
 
