@@ -12,13 +12,16 @@ void QResultImageView::setImage(const QImage& image)
 {
     source.convertFromImage(image);
     updateScaledSourceImage();
+    drawResultsOnScaledSourceImage();
+    updateCroppedSourceImageAndDestinationRect();
     update();
 }
 
 void QResultImageView::setResults(const std::vector<Result>& results)
 {
     this->results = results;
-    updateScaledAndTranslatedResults();
+    drawResultsOnScaledSourceImage();
+    updateCroppedSourceImageAndDestinationRect();
     update();
 }
 
@@ -28,8 +31,8 @@ void QResultImageView::setImageAndResults(const QImage& image, const Results& re
     this->results = results;
 
     updateScaledSourceImage();
-    updateScaledAndTranslatedResults();
-
+    drawResultsOnScaledSourceImage();
+    updateCroppedSourceImageAndDestinationRect();
     update();
 }
 
@@ -37,13 +40,6 @@ void QResultImageView::paintEvent(QPaintEvent* event)
 {
     QPainter painter(this);
     painter.drawPixmap(destinationRect, croppedSource);
-
-    for (const Result& scaledAndTranslatedResult : scaledAndTranslatedResults) {
-        painter.setPen(scaledAndTranslatedResult.pen);
-        if (!scaledAndTranslatedResult.contour.empty()) {
-            painter.drawPolygon(scaledAndTranslatedResult.contour.data(), static_cast<int>(scaledAndTranslatedResult.contour.size()));
-        }
-    }
 }
 
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
@@ -55,7 +51,6 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
             offsetY += (event->y() - previousMouseY) * imageScaler;
             limitOffset();
             updateCroppedSourceImageAndDestinationRect();
-            updateScaledAndTranslatedResults();
             update();
         }
     }
@@ -89,19 +84,23 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
         limitOffset();
 
         updateScaledSourceImage();
-        updateScaledAndTranslatedResults();
+        drawResultsOnScaledSourceImage();
+        updateCroppedSourceImageAndDestinationRect();
         update();
     }
 }
 
 void QResultImageView::resizeEvent(QResizeEvent* event)
 {
-    updateScaledSourceImage();
-    updateScaledAndTranslatedResults();
-    update();
+    if (!isnan(getScaleFactor())) {
+        updateScaledSourceImage();
+        drawResultsOnScaledSourceImage();
+        updateCroppedSourceImageAndDestinationRect();
+        update();
+    }
 }
 
-void QResultImageView::updateScaledSourceImage()
+double QResultImageView::getScaleFactor() const
 {
     const int srcFullWidth = source.width();
     const int srcFullHeight = source.height();
@@ -109,17 +108,51 @@ void QResultImageView::updateScaledSourceImage()
     const QRect r = rect();
 
     if (srcFullWidth <= 0 || srcFullHeight <= 0 || r.width() <= 0 || r.height() <= 0) {
+        return std::numeric_limits<double>::quiet_NaN();
+    }
+
+    return std::min(1.0, 1.0 / getImageScaler());
+}
+
+void QResultImageView::updateScaledSourceImage()
+{
+    const double scaleFactor = getScaleFactor();
+
+    if (isnan(scaleFactor)) {
         return;
     }
 
-    const double imageScaler = getImageScaler();
-
-    const int scaledWidth = static_cast<int>(ceil(srcFullWidth / std::max(1.0, imageScaler)));
-    const int scaledHeight = static_cast<int>(ceil(srcFullHeight / std::max(1.0, imageScaler)));
+    const int scaledWidth = static_cast<int>(ceil(scaleFactor * source.width()));
+    const int scaledHeight = static_cast<int>(ceil(scaleFactor * source.height()));
 
     scaledSource = source.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+}
 
-    updateCroppedSourceImageAndDestinationRect();
+void QResultImageView::drawResultsOnScaledSourceImage()
+{
+    if (results.empty()) {
+        scaledSourceWithResults = scaledSource;
+    }
+    else {
+        scaledSourceWithResults = scaledSource.copy();
+    }
+
+    const double scaleFactor = getScaleFactor();
+
+    QPainter resultPainter(&scaledSourceWithResults);
+    for (const Result& result : results) {
+        resultPainter.setPen(result.pen);
+        if (!result.contour.empty()) {
+            std::vector<QPoint> scaledContour(result.contour.size());
+            for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
+                const QPointF& point = result.contour[i];
+                QPoint& scaledPoint = scaledContour[i];
+                scaledPoint.setX(static_cast<int>(std::round(point.x() * scaleFactor)));
+                scaledPoint.setY(static_cast<int>(std::round(point.y() * scaleFactor)));
+            }
+            resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
+        }
+    }
 }
 
 void QResultImageView::updateCroppedSourceImageAndDestinationRect()
@@ -172,27 +205,9 @@ void QResultImageView::updateCroppedSourceImageAndDestinationRect()
     };
 
     const QRect scaledSourceRect = roundedRect(scaledSourceTopLeft, scaledSourceBottomRight);
-    croppedSource = scaledSource.copy(scaledSourceRect);
+    croppedSource = scaledSourceWithResults.copy(scaledSourceRect);
 
     destinationRect = roundedRect(dstTopLeft, dstBottomRight);
-}
-
-void QResultImageView::updateScaledAndTranslatedResults()
-{
-    scaledAndTranslatedResults.resize(results.size());
-
-    const double imageScaler = getImageScaler();
-
-    for (size_t i = 0, end = results.size(); i < end; ++i) {
-        const Result& result = results[i];
-        Result& scaledAndTranslatedResult = scaledAndTranslatedResults[i];
-
-        scaledAndTranslatedResult.pen = result.pen;
-        scaledAndTranslatedResult.contour.resize(result.contour.size());
-        for (size_t j = 0, end = result.contour.size(); j < end; ++j) {
-            scaledAndTranslatedResult.contour[j] = sourceToScreen(result.contour[j]);
-        }
-    }
 }
 
 double QResultImageView::getSourceImageVisibleWidth() const

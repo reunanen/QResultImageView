@@ -31,10 +31,10 @@ protected:
     void resizeEvent(QResizeEvent* event) override;
 
 private:
+    double getScaleFactor() const;
     void updateScaledSourceImage();
+    void drawResultsOnScaledSourceImage();
     void updateCroppedSourceImageAndDestinationRect();
-
-    void updateScaledAndTranslatedResults();
 
     double getSourceImageVisibleWidth() const;
     double getSourceImageVisibleHeigth() const;
@@ -61,6 +61,7 @@ private:
 
     QPixmap source;
     QPixmap scaledSource;
+    QPixmap scaledSourceWithResults;
     QPixmap croppedSource;
 
     QRect destinationRect;
@@ -74,7 +75,6 @@ private:
     int previousMouseY = 0;
 
     Results results;
-    Results scaledAndTranslatedResults;
 };
 
 #endif // QRESULTIMAGEVIEW_H
