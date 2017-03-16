@@ -24,15 +24,22 @@ public:
 
     void setImageAndResults(const QImage& image, const Results& results);
 
+    void setZoomedOutTransformationMode(Qt::TransformationMode transformationMode);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
+private slots:
+    void performSmoothTransformation();
+
 private:
+    void redrawEverything(Qt::TransformationMode transformationMode);
+
+    void updateScaledSourceImage(Qt::TransformationMode transformationMode);
     double getScaleFactor() const;
-    void updateScaledSourceImage();
     void drawResultsOnScaledSourceImage();
     void updateCroppedSourceImageAndDestinationRect();
 
@@ -56,6 +63,12 @@ private:
 
     void limitOffset();
 
+    Qt::TransformationMode getDesiredTransformationMode() const;
+
+    bool isSmoothTransformationDesired() const;
+
+    void considerActivatingSmoothTransformationTimer();
+
     QPointF screenToSource(const QPointF& screenPoint) const;
     QPointF sourceToScreen(const QPointF& sourcePoint) const;
 
@@ -75,6 +88,9 @@ private:
     int previousMouseY = 0;
 
     Results results;
+
+    Qt::TransformationMode zoomedOutTransformationMode = Qt::SmoothTransformation;
+    int smoothTransformationPendingCounter = 0;
 };
 
 #endif // QRESULTIMAGEVIEW_H
