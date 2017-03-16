@@ -24,7 +24,13 @@ public:
 
     void setImageAndResults(const QImage& image, const Results& results);
 
-    void setZoomedOutTransformationMode(Qt::TransformationMode transformationMode);
+    enum TransformationMode {
+        AlwaysFastTransformation, // most responsive, but may not look great on some images
+        SmoothTransformationWhenZoomedOut, // least responsive, but may look best
+        DelayedSmoothTransformationWhenZoomedOut // responsive and eventually good-looking
+    };
+
+    void setTransformationMode(TransformationMode transformationMode);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -63,9 +69,8 @@ private:
 
     void limitOffset();
 
-    Qt::TransformationMode getDesiredTransformationMode() const;
-
-    bool isSmoothTransformationDesired() const;
+    Qt::TransformationMode getInitialTransformationMode() const;
+    Qt::TransformationMode getEventualTransformationMode() const;
 
     void considerActivatingSmoothTransformationTimer();
 
@@ -89,7 +94,7 @@ private:
 
     Results results;
 
-    Qt::TransformationMode zoomedOutTransformationMode = Qt::SmoothTransformation;
+    TransformationMode transformationMode = DelayedSmoothTransformationWhenZoomedOut;
     int smoothTransformationPendingCounter = 0;
 };
 

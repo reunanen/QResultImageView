@@ -12,7 +12,7 @@ QResultImageView::QResultImageView(QWidget *parent)
 void QResultImageView::setImage(const QImage& image)
 {
     source.convertFromImage(image);
-    redrawEverything(getDesiredTransformationMode());
+    redrawEverything(getEventualTransformationMode());
 }
 
 void QResultImageView::setResults(const std::vector<Result>& results)
@@ -28,14 +28,14 @@ void QResultImageView::setImageAndResults(const QImage& image, const Results& re
     source.convertFromImage(image);
     this->results = results;
 
-    redrawEverything(getDesiredTransformationMode());
+    redrawEverything(getEventualTransformationMode());
 }
 
-void QResultImageView::setZoomedOutTransformationMode(Qt::TransformationMode transformationMode)
+void QResultImageView::setTransformationMode(TransformationMode mode)
 {
-    if (zoomedOutTransformationMode != transformationMode) {
-        zoomedOutTransformationMode = transformationMode;
-        redrawEverything(getDesiredTransformationMode());
+    if (transformationMode != mode) {
+        transformationMode = mode;
+        redrawEverything(getEventualTransformationMode());
     }
 }
 
@@ -86,7 +86,7 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
 
         limitOffset();
 
-        redrawEverything(Qt::FastTransformation);
+        redrawEverything(getInitialTransformationMode());
         considerActivatingSmoothTransformationTimer();
     }
 }
@@ -94,7 +94,7 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
 void QResultImageView::resizeEvent(QResizeEvent* event)
 {
     if (!isnan(getScaleFactor())) {
-        redrawEverything(Qt::FastTransformation);
+        redrawEverything(getInitialTransformationMode());
         considerActivatingSmoothTransformationTimer();
     }
 }
@@ -115,19 +115,21 @@ double QResultImageView::getScaleFactor() const
 
 void QResultImageView::redrawEverything(Qt::TransformationMode transformationMode)
 {
-    updateScaledSourceImage(transformationMode);
-    drawResultsOnScaledSourceImage();
-    updateCroppedSourceImageAndDestinationRect();
-    update();
+    const double scaleFactor = getScaleFactor();
+
+    if (!isnan(scaleFactor)) {
+        updateScaledSourceImage(transformationMode);
+        drawResultsOnScaledSourceImage();
+        updateCroppedSourceImageAndDestinationRect();
+        update();
+    }
 }
 
 void QResultImageView::updateScaledSourceImage(Qt::TransformationMode transformationMode)
 {
     const double scaleFactor = getScaleFactor();
 
-    if (isnan(scaleFactor)) {
-        return;
-    }
+    Q_ASSERT(!isnan(scaleFactor));
 
     const int scaledWidth = static_cast<int>(ceil(scaleFactor * source.width()));
     const int scaledHeight = static_cast<int>(ceil(scaleFactor * source.height()));
@@ -292,16 +294,18 @@ QPointF QResultImageView::sourceToScreen(const QPointF& sourcePoint) const
 
 void QResultImageView::performSmoothTransformation()
 {
-    --smoothTransformationPendingCounter;    
+    --smoothTransformationPendingCounter;
 
-    if (smoothTransformationPendingCounter == 0 && isSmoothTransformationDesired()) {
+    if (smoothTransformationPendingCounter == 0 && getEventualTransformationMode() == Qt::SmoothTransformation) {
         redrawEverything(Qt::SmoothTransformation);
     }
 }
 
-Qt::TransformationMode QResultImageView::getDesiredTransformationMode() const
+Qt::TransformationMode QResultImageView::getInitialTransformationMode() const
 {
-    if (isSmoothTransformationDesired()) {
+    const double imageScaler = getImageScaler();
+
+    if (imageScaler > 1.0 && transformationMode == SmoothTransformationWhenZoomedOut) {
         return Qt::SmoothTransformation;
     }
     else {
@@ -309,19 +313,21 @@ Qt::TransformationMode QResultImageView::getDesiredTransformationMode() const
     }
 }
 
-bool QResultImageView::isSmoothTransformationDesired() const
+Qt::TransformationMode QResultImageView::getEventualTransformationMode() const
 {
-    if (zoomedOutTransformationMode == Qt::FastTransformation) {
-        return false;
-    }
-
     const double imageScaler = getImageScaler();
-    return imageScaler > 1.0;
+
+    if (imageScaler > 1.0 && transformationMode != AlwaysFastTransformation) {
+        return Qt::SmoothTransformation;
+    }
+    else {
+        return Qt::FastTransformation;
+    }
 }
 
 void QResultImageView::considerActivatingSmoothTransformationTimer()
 {
-    if (isSmoothTransformationDesired()) {
+    if (getEventualTransformationMode() == Qt::SmoothTransformation) {
         ++smoothTransformationPendingCounter;
         QTimer::singleShot(100, this, SLOT(performSmoothTransformation()));
     }
