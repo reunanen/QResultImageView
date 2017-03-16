@@ -1,6 +1,7 @@
 #include "QResultImageView.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <qtimer.h>
 
 QResultImageView::QResultImageView(QWidget *parent)
     : QWidget(parent)
@@ -11,7 +12,7 @@ QResultImageView::QResultImageView(QWidget *parent)
 void QResultImageView::setImage(const QImage& image)
 {
     source.convertFromImage(image);
-    updateScaledSourceImage();
+    updateScaledSourceImage(getDesiredTransformationMode());
     update();
 }
 
@@ -27,7 +28,7 @@ void QResultImageView::setImageAndResults(const QImage& image, const Results& re
     source.convertFromImage(image);
     this->results = results;
 
-    updateScaledSourceImage();
+    updateScaledSourceImage(getDesiredTransformationMode());
     updateScaledAndTranslatedResults();
 
     update();
@@ -88,20 +89,24 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
 
         limitOffset();
 
-        updateScaledSourceImage();
+        updateScaledSourceImage(Qt::FastTransformation);
         updateScaledAndTranslatedResults();
         update();
+
+        considerActivatingSmoothTransformationTimer();
     }
 }
 
 void QResultImageView::resizeEvent(QResizeEvent* event)
 {
-    updateScaledSourceImage();
+    updateScaledSourceImage(Qt::FastTransformation);
     updateScaledAndTranslatedResults();
     update();
+
+    considerActivatingSmoothTransformationTimer();
 }
 
-void QResultImageView::updateScaledSourceImage()
+void QResultImageView::updateScaledSourceImage(Qt::TransformationMode transformationMode)
 {
     const int srcFullWidth = source.width();
     const int srcFullHeight = source.height();
@@ -117,7 +122,7 @@ void QResultImageView::updateScaledSourceImage()
     const int scaledWidth = static_cast<int>(ceil(srcFullWidth / std::max(1.0, imageScaler)));
     const int scaledHeight = static_cast<int>(ceil(srcFullHeight / std::max(1.0, imageScaler)));
 
-    scaledSource = source.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    scaledSource = source.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
 
     updateCroppedSourceImageAndDestinationRect();
 }
@@ -266,4 +271,40 @@ QPointF QResultImageView::sourceToScreen(const QPointF& sourcePoint) const
     qreal screenX = (r.width() - source.width() / imageScaler) / 2 + (sourcePoint.x() + offsetX) / imageScaler;
     qreal screenY = (r.height() - source.height() / imageScaler) / 2 + (sourcePoint.y() + offsetY) / imageScaler;
     return QPointF(screenX, screenY);
+}
+
+void QResultImageView::performSmoothTransformation()
+{
+    --smoothTransformationPendingCounter;    
+
+    if (smoothTransformationPendingCounter == 0 && isSmoothTransformationDesired()) {
+        updateScaledSourceImage(Qt::SmoothTransformation);
+        updateScaledAndTranslatedResults();
+
+        update();
+    }
+}
+
+Qt::TransformationMode QResultImageView::getDesiredTransformationMode() const
+{
+    if (isSmoothTransformationDesired()) {
+        return Qt::SmoothTransformation;
+    }
+    else {
+        return Qt::FastTransformation;
+    }
+}
+
+bool QResultImageView::isSmoothTransformationDesired() const
+{
+    const double imageScaler = getImageScaler();
+    return imageScaler > 1.0;
+}
+
+void QResultImageView::considerActivatingSmoothTransformationTimer()
+{
+    if (isSmoothTransformationDesired()) {
+        ++smoothTransformationPendingCounter;
+        QTimer::singleShot(100, this, SLOT(performSmoothTransformation()));
+    }
 }

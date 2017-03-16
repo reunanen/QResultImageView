@@ -30,8 +30,11 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
+private slots:
+    void performSmoothTransformation();
+
 private:
-    void updateScaledSourceImage();
+    void updateScaledSourceImage(Qt::TransformationMode transformationMode);
     void updateCroppedSourceImageAndDestinationRect();
 
     void updateScaledAndTranslatedResults();
@@ -56,6 +59,12 @@ private:
 
     void limitOffset();
 
+    Qt::TransformationMode getDesiredTransformationMode() const;
+
+    bool isSmoothTransformationDesired() const;
+
+    void considerActivatingSmoothTransformationTimer();
+
     QPointF screenToSource(const QPointF& screenPoint) const;
     QPointF sourceToScreen(const QPointF& sourcePoint) const;
 
@@ -75,6 +84,8 @@ private:
 
     Results results;
     Results scaledAndTranslatedResults;
+
+    int smoothTransformationPendingCounter = 0;
 };
 
 #endif // QRESULTIMAGEVIEW_H
