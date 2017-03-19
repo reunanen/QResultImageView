@@ -376,11 +376,15 @@ void QResultImageView::setPixelSizeInMeters(double pixelSizeInMeters)
 
 void QResultImageView::drawYardstick(QPainter& painter)
 {
+    const double imageScaler = getImageScaler();
+
+    if (isnan(imageScaler)) {
+        return;
+    }
+
     const QRect r = rect();
 
     const int margin = 20;
-
-    const double imageScaler = getImageScaler();
 
     const auto getYardstickSize_m = [&](int rectDimension) {
         const double maxYardstickSize_m = (rectDimension - 2 * margin) * pixelSize_m * imageScaler;
