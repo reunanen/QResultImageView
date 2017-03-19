@@ -43,6 +43,10 @@ void QResultImageView::paintEvent(QPaintEvent* event)
 {
     QPainter painter(this);
     painter.drawPixmap(destinationRect, croppedSource);
+
+    if (!isnan(pixelSize_m)) {
+        drawYardstick(painter);
+    }
 }
 
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
@@ -362,4 +366,78 @@ void QResultImageView::resetZoomAndPan()
 bool QResultImageView::isDefaultZoomAndPan() const
 {
     return offsetX == 0 && offsetY == 0 && zoomLevel == 0;
+}
+
+void QResultImageView::setPixelSizeInMeters(double pixelSizeInMeters)
+{
+    pixelSize_m = pixelSizeInMeters;
+    update();
+}
+
+void QResultImageView::drawYardstick(QPainter& painter)
+{
+    const QRect r = rect();
+
+    const int margin = 20;
+
+    const double imageScaler = getImageScaler();
+
+    const auto getYardstickSize_m = [&](int rectDimension) {
+        const double maxYardstickSize_m = (rectDimension - 2 * margin) * pixelSize_m * imageScaler;
+
+        // round down to the nearest power of 10
+        double yardstickSize_m = pow(10, floor(log10(maxYardstickSize_m)));
+
+        if (2 * yardstickSize_m <= maxYardstickSize_m) {
+            yardstickSize_m = 2 * yardstickSize_m;
+        }
+        if (2.5 * yardstickSize_m <= maxYardstickSize_m) {
+            yardstickSize_m = 2.5 * yardstickSize_m;
+        }
+
+        return yardstickSize_m;
+    };
+
+    const auto getYardstickText = [](double yardstickSize_m) {
+        if (yardstickSize_m < 1e-3) {
+            return QString::number(yardstickSize_m * 1e6, 'g') + " um";
+        }
+        else if (yardstickSize_m < 1) {
+            return QString::number(yardstickSize_m * 1e3, 'f', 0) + " mm";
+        }
+        else {
+            return QString::number(yardstickSize_m, 'f', 0) + " m";
+        }
+    };
+
+    if (r.width() > 8 * margin && r.height() > 2 * margin) {
+        const double yardstickSizeX_m = getYardstickSize_m(r.width());
+
+        const int y = r.height() - margin;
+        const int w = std::round(yardstickSizeX_m / pixelSize_m / imageScaler);
+
+        painter.setPen(Qt::white);
+        painter.drawLine(margin, y - 1, margin + w, y - 1);
+
+        painter.setPen(Qt::black);
+        painter.drawLine(margin, y, margin + w, y);
+        painter.drawText(margin, y, w, margin, Qt::AlignRight | Qt::AlignTop, getYardstickText(yardstickSizeX_m));
+    }
+
+    if (r.height() > 8 * margin && r.width() > 2 * margin) {
+        const double yardstickSizeY_m = getYardstickSize_m(r.height());
+
+        const int origin = r.height() - margin;
+        const int h = std::round(yardstickSizeY_m / pixelSize_m / imageScaler);
+
+        painter.setPen(Qt::white);
+        painter.drawLine(margin + 1, origin - h, margin + 1, origin - 1);
+
+        painter.setPen(Qt::black);
+        painter.drawLine(margin, origin - h, margin, origin);
+
+        painter.rotate(-90);
+        painter.drawText(-origin, 0, h, margin, Qt::AlignRight | Qt::AlignBottom, getYardstickText(yardstickSizeY_m));
+        painter.rotate(90);
+    }
 }

@@ -39,6 +39,8 @@ public:
     // Has the user panned the view, or zoomed in or out? False if not.
     bool isDefaultZoomAndPan() const;
 
+    void setPixelSizeInMeters(double pixelSizeInMeters);
+
 signals:
     void panned();
     void zoomed();
@@ -80,6 +82,8 @@ private:
 
     void limitOffset();
 
+    void drawYardstick(QPainter& painter);
+
     Qt::TransformationMode getInitialTransformationMode() const;
     Qt::TransformationMode getEventualTransformationMode() const;
 
@@ -109,6 +113,8 @@ private:
     int smoothTransformationPendingCounter = 0;
 
     bool resultsVisible = true;
+
+    double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
 };
 
 #endif // QRESULTIMAGEVIEW_H
