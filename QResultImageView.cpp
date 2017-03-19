@@ -414,6 +414,20 @@ void QResultImageView::drawYardstick(QPainter& painter)
         }
     };
 
+    const auto drawOutlinedText = [&painter](int x, int y, int w, int h, int flags, const QString& text)
+    {
+        painter.setPen(Qt::white);
+        for (int i = -1; i <= 1; ++i) {
+            for (int j = -1; j <= 1; ++j) {
+                if (i != 0 && j != 0) {
+                    painter.drawText(x + i, y + j, w, h, flags, text);
+                }
+            }
+        }
+        painter.setPen(Qt::black);
+        painter.drawText(x, y, w, h, flags, text);
+    };
+
     if (r.width() > 8 * margin && r.height() > 2 * margin) {
         const double yardstickSizeX_m = getYardstickSize_m(r.width());
 
@@ -425,7 +439,8 @@ void QResultImageView::drawYardstick(QPainter& painter)
 
         painter.setPen(Qt::black);
         painter.drawLine(margin, y, margin + w, y);
-        painter.drawText(margin, y, w, margin, Qt::AlignRight | Qt::AlignTop, getYardstickText(yardstickSizeX_m));
+
+        drawOutlinedText(margin, y, w, margin, Qt::AlignRight | Qt::AlignTop, getYardstickText(yardstickSizeX_m));
     }
 
     if (r.height() > 8 * margin && r.width() > 2 * margin) {
@@ -441,7 +456,7 @@ void QResultImageView::drawYardstick(QPainter& painter)
         painter.drawLine(margin, origin - h, margin, origin);
 
         painter.rotate(-90);
-        painter.drawText(-origin, 0, h, margin, Qt::AlignRight | Qt::AlignBottom, getYardstickText(yardstickSizeY_m));
+        drawOutlinedText(-origin, 0, h, margin, Qt::AlignRight | Qt::AlignBottom, getYardstickText(yardstickSizeY_m));
         painter.rotate(90);
     }
 }
