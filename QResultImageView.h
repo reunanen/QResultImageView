@@ -41,15 +41,23 @@ public:
 
     void setPixelSizeInMeters(double pixelSizeInMeters);
 
+    void panAbsolute(double offsetX, double offsetY);
+    void panRelative(double offsetX, double offsetY); // TODO
+
 signals:
     void panned();
     void zoomed();
+    void mouseOnResult(size_t resultIndex);
+    void mouseNotOnResult();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void wheelEvent(QWheelEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
+
+    double getOffsetX() const;
+    double getOffsetY() const;
 
 private slots:
     void performSmoothTransformation();
@@ -92,12 +100,19 @@ private:
     QPointF screenToSource(const QPointF& screenPoint) const;
     QPointF sourceToScreen(const QPointF& sourcePoint) const;
 
+    void checkMousePan(const QMouseEvent* event);
+    void checkMouseOnResult(const QMouseEvent* event);
+
+    void setResultPolygons();
+
     QPixmap source;
     QPixmap scaledSource;
     QPixmap scaledSourceWithResults;
     QPixmap croppedSource;
 
     QRect destinationRect;
+
+    std::vector<QPolygonF> resultPolygons;
 
     int zoomLevel = 0;
     double offsetX = 0;
@@ -106,6 +121,8 @@ private:
     bool hasPreviousMouseCoordinates = 0;
     int previousMouseX = 0;
     int previousMouseY = 0;
+
+    size_t mouseOnResultIndex = -1;
 
     Results results;
 

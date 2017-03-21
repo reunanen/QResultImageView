@@ -18,6 +18,8 @@ void QResultImageView::setImage(const QImage& image)
 void QResultImageView::setResults(const std::vector<Result>& results)
 {
     this->results = results;
+    setResultPolygons();
+
     drawResultsOnScaledSourceImage();
     updateCroppedSourceImageAndDestinationRect();
     update();
@@ -27,6 +29,7 @@ void QResultImageView::setImageAndResults(const QImage& image, const Results& re
 {
     source.convertFromImage(image);
     this->results = results;
+    setResultPolygons();
 
     redrawEverything(getEventualTransformationMode());
 }
@@ -51,6 +54,12 @@ void QResultImageView::paintEvent(QPaintEvent* event)
 
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
 {
+    checkMousePan(event);
+    checkMouseOnResult(event);
+}
+
+void QResultImageView::checkMousePan(const QMouseEvent *event)
+{
     if (hasPreviousMouseCoordinates) {
         if (event->buttons() & Qt::LeftButton) {
             const double imageScaler = getImageScaler();
@@ -67,6 +76,32 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     hasPreviousMouseCoordinates = true;
     previousMouseX = event->x();
     previousMouseY = event->y();
+}
+
+void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
+{
+    const QPointF screenPoint(event->x(), event->y());
+    const QPointF sourcePoint = screenToSource(screenPoint);
+
+    size_t newMouseOnResultIndex = -1;
+
+    for (size_t i = 0, end = resultPolygons.size(); i < end; ++i) {
+        const QPolygonF& polygon = resultPolygons[i];
+        if (polygon.containsPoint(sourcePoint, Qt::OddEvenFill)) {
+            newMouseOnResultIndex = i;
+            break;
+        }
+    }
+
+    if (newMouseOnResultIndex != mouseOnResultIndex) {
+        if (mouseOnResultIndex != -1 || newMouseOnResultIndex == -1) {
+            emit mouseNotOnResult();
+        }
+        if (newMouseOnResultIndex != -1) {
+            emit mouseOnResult(newMouseOnResultIndex);
+        }
+        mouseOnResultIndex = newMouseOnResultIndex;
+    }
 }
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
@@ -464,5 +499,41 @@ void QResultImageView::drawYardstick(QPainter& painter)
         painter.rotate(-90);
         drawOutlinedText(-origin, 0, h, margin, Qt::AlignRight | Qt::AlignBottom, getYardstickText(yardstickSizeY_m));
         painter.rotate(90);
+    }
+}
+
+void QResultImageView::panAbsolute(double offsetX, double offsetY)
+{
+    this->offsetX = offsetX;
+    this->offsetY = offsetY;
+
+    limitOffset();
+    updateCroppedSourceImageAndDestinationRect();
+    update();
+
+    emit panned();
+}
+
+double QResultImageView::getOffsetX() const
+{
+    return offsetX;
+}
+
+double QResultImageView::getOffsetY() const
+{
+    return offsetY;
+}
+
+void QResultImageView::setResultPolygons()
+{
+    // set result polygons to be used for the mouse-on-result test
+    resultPolygons.resize(results.size());
+    for (size_t i = 0, end = results.size(); i < end; ++i) {
+        QPolygonF& resultPolygon = resultPolygons[i];
+        const Result& result = results[i];
+        resultPolygon.resize(result.contour.size());
+        for (size_t j = 0, end = result.contour.size(); j < end; ++j) {
+            resultPolygon[j] = result.contour[j];
+        }
     }
 }
