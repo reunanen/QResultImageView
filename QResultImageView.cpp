@@ -71,7 +71,7 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
-    const int newZoomLevel = std::min(std::max(zoomLevel + event->delta(), 0), getMaxZoomLevel());
+    const int newZoomLevel = std::min(std::max(zoomLevel + 4 * event->delta(), 0), getMaxZoomLevel());
     if (newZoomLevel != zoomLevel) {
         //const bool zoomingIn = newZoomLevel > zoomLevel;
 
@@ -254,13 +254,19 @@ double QResultImageView::getDefaultMagnification() const
     return magnification;
 }
 
+// adapted from https://en.wikipedia.org/wiki/Smoothstep
+double smoothstep(double x)
+{
+    return x * x * (3 - 2 * x);
+}
+
 double QResultImageView::getEffectiveZoomLevel() const
 {
     const double maxZoomLevel = getMaxZoomLevel();
     const double minEffectiveZoomLevel = 200.0 / maxZoomLevel; // pretty much empirical
     const double linearPart = zoomLevel / maxZoomLevel;
-    const double nonlinearPart = pow(zoomLevel / maxZoomLevel, 0.5);
-    const double linearPartWeight = 0.5;
+    const double nonlinearPart = smoothstep(sqrt(zoomLevel/ maxZoomLevel));
+    const double linearPartWeight = 0.1;
     const double adjustedZoomLevel = linearPartWeight * linearPart + (1.0 - linearPartWeight) * nonlinearPart;
     return minEffectiveZoomLevel + (1.0 - minEffectiveZoomLevel) * (1.0 - adjustedZoomLevel);
 }
