@@ -30,7 +30,7 @@ public:
         DelayedSmoothTransformationWhenZoomedOut // responsive and eventually good-looking
     };
 
-    void setTransformationMode(TransformationMode transformationMode);
+    void setTransformationMode(TransformationMode newTransformationMode);
 
     void setResultsVisible(bool visible);
 
@@ -105,7 +105,12 @@ private:
 
     void setResultPolygons();
 
+    void updateSourcePyramid();
+
+    const QPixmap* getSourcePixmap(double scaleFactor);
+
     QPixmap source;
+    std::map<double, QPixmap> sourcePyramid;
     QPixmap scaledSource;
     QPixmap scaledSourceWithResults;
     QPixmap croppedSource;

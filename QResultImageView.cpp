@@ -12,6 +12,8 @@ QResultImageView::QResultImageView(QWidget *parent)
 void QResultImageView::setImage(const QImage& image)
 {
     source.convertFromImage(image);
+    updateSourcePyramid();
+
     redrawEverything(getEventualTransformationMode());
 }
 
@@ -28,16 +30,26 @@ void QResultImageView::setResults(const std::vector<Result>& results)
 void QResultImageView::setImageAndResults(const QImage& image, const Results& results)
 {
     source.convertFromImage(image);
+    updateSourcePyramid();
+
     this->results = results;
     setResultPolygons();
 
     redrawEverything(getEventualTransformationMode());
 }
 
-void QResultImageView::setTransformationMode(TransformationMode mode)
+void QResultImageView::setTransformationMode(TransformationMode newTransformationMode)
 {
-    if (transformationMode != mode) {
-        transformationMode = mode;
+    if (newTransformationMode != transformationMode) {
+
+        const bool needToUpdateSourcePyramid = (newTransformationMode == AlwaysFastTransformation || transformationMode == AlwaysFastTransformation);
+
+        transformationMode = newTransformationMode;
+
+        if (needToUpdateSourcePyramid) {
+            updateSourcePyramid();
+        }
+
         redrawEverything(getEventualTransformationMode());
     }
 }
@@ -177,7 +189,25 @@ void QResultImageView::updateScaledSourceImage(Qt::TransformationMode transforma
     const int scaledWidth = static_cast<int>(ceil(scaleFactor * source.width()));
     const int scaledHeight = static_cast<int>(ceil(scaleFactor * source.height()));
 
-    scaledSource = source.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
+    const QPixmap* pSource = getSourcePixmap(scaleFactor);
+    scaledSource = pSource->scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
+}
+
+const QPixmap* QResultImageView::getSourcePixmap(double scaleFactor)
+{
+    if (scaleFactor > sourcePyramid.rbegin()->first) {
+        return &source;
+    }
+    else {
+        auto i = sourcePyramid.begin();
+        const QPixmap* pixmap = &i->second;
+        while (scaleFactor > i->first) {
+            Q_ASSERT(i != sourcePyramid.end());
+            pixmap = &(++i)->second;
+        }
+        Q_ASSERT(i != sourcePyramid.end());
+        return pixmap;
+    }
 }
 
 void QResultImageView::drawResultsOnScaledSourceImage()
@@ -378,7 +408,7 @@ void QResultImageView::considerActivatingSmoothTransformationTimer()
 {
     if (getEventualTransformationMode() == Qt::SmoothTransformation) {
         ++smoothTransformationPendingCounter;
-        QTimer::singleShot(100, this, SLOT(performSmoothTransformation()));
+        QTimer::singleShot(1000, this, SLOT(performSmoothTransformation()));
     }
 }
 
@@ -531,9 +561,33 @@ void QResultImageView::setResultPolygons()
     for (size_t i = 0, end = results.size(); i < end; ++i) {
         QPolygonF& resultPolygon = resultPolygons[i];
         const Result& result = results[i];
-        resultPolygon.resize(result.contour.size());
+        resultPolygon.resize(static_cast<int>(result.contour.size()));
         for (size_t j = 0, end = result.contour.size(); j < end; ++j) {
-            resultPolygon[j] = result.contour[j];
+            resultPolygon[static_cast<int>(j)] = result.contour[j];
         }
+    }
+}
+
+void QResultImageView::updateSourcePyramid()
+{
+    const Qt::TransformationMode mode = transformationMode == AlwaysFastTransformation
+            ? Qt::FastTransformation
+            : Qt::SmoothTransformation;
+
+    double scaleFactor = 1.0;
+    double width = source.width();
+    double height = source.height();
+
+    const QPixmap* previous = &source;
+    const double step = 2.0;
+
+    while (width > 50 && height > 50) {
+        scaleFactor /= step;
+        width /= step;
+        height /= step;
+
+        sourcePyramid[scaleFactor] = previous->scaled(QSize(std::round(width), std::round(height)), Qt::IgnoreAspectRatio, mode);
+
+        previous = &sourcePyramid.rbegin()->second;
     }
 }
