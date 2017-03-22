@@ -22,8 +22,7 @@ void QResultImageView::setResults(const std::vector<Result>& results)
     this->results = results;
     setResultPolygons();
 
-    drawResultsOnScaledSourceImage();
-    updateCroppedSourceImageAndDestinationRect();
+    drawResultsToViewport();
     update();
 }
 
@@ -57,7 +56,7 @@ void QResultImageView::setTransformationMode(TransformationMode newTransformatio
 void QResultImageView::paintEvent(QPaintEvent* event)
 {
     QPainter painter(this);
-    painter.drawPixmap(destinationRect, croppedSource);
+    painter.drawPixmap(destinationRect, scaledAndCroppedSourceWithResults);
 
     if (!isnan(pixelSize_m)) {
         drawYardstick(painter);
@@ -78,8 +77,8 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
             offsetX += (event->x() - previousMouseX) * imageScaler;
             offsetY += (event->y() - previousMouseY) * imageScaler;
             limitOffset();
-            updateCroppedSourceImageAndDestinationRect();
-            update();
+            redrawEverything(getInitialTransformationMode());
+            considerActivatingSmoothTransformationTimer();
 
             emit panned();
         }
@@ -173,54 +172,52 @@ void QResultImageView::redrawEverything(Qt::TransformationMode transformationMod
     const double scaleFactor = getScaleFactor();
 
     if (!isnan(scaleFactor)) {
-        updateScaledSourceImage(transformationMode);
-        drawResultsOnScaledSourceImage();
-        updateCroppedSourceImageAndDestinationRect();
+        updateViewport(transformationMode);
+        drawResultsToViewport();
         update();
     }
 }
 
-void QResultImageView::updateScaledSourceImage(Qt::TransformationMode transformationMode)
-{
-    const double scaleFactor = getScaleFactor();
-
-    Q_ASSERT(!isnan(scaleFactor));
-
-    const int scaledWidth = static_cast<int>(ceil(scaleFactor * source.width()));
-    const int scaledHeight = static_cast<int>(ceil(scaleFactor * source.height()));
-
-    const QPixmap* pSource = getSourcePixmap(scaleFactor);
-    scaledSource = pSource->scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
-}
-
-const QPixmap* QResultImageView::getSourcePixmap(double scaleFactor)
+std::pair<double, const QPixmap*> QResultImageView::getSourcePixmap(double scaleFactor) const
 {
     if (scaleFactor > sourcePyramid.rbegin()->first) {
-        return &source;
+        return std::make_pair(1.0, &source);
     }
     else {
         auto i = sourcePyramid.begin();
-        const QPixmap* pixmap = &i->second;
+        double foundScaleFactor = i->first;
+        const QPixmap* correspondingPixmap = &i->second;
         while (scaleFactor > i->first) {
             Q_ASSERT(i != sourcePyramid.end());
-            pixmap = &(++i)->second;
+            ++i;
+            foundScaleFactor = i->first;
+            correspondingPixmap = &i->second;
         }
         Q_ASSERT(i != sourcePyramid.end());
-        return pixmap;
+        return std::make_pair(foundScaleFactor, correspondingPixmap);
     }
 }
 
-void QResultImageView::drawResultsOnScaledSourceImage()
+void QResultImageView::drawResultsToViewport()
 {
     if (results.empty() || !resultsVisible) {
-        scaledSourceWithResults = scaledSource;
+        scaledAndCroppedSourceWithResults = scaledAndCroppedSource;
     }
     else {
-        scaledSourceWithResults = scaledSource.copy();
+        scaledAndCroppedSourceWithResults = scaledAndCroppedSource.copy();
 
         const double scaleFactor = getScaleFactor();
 
-        QPainter resultPainter(&scaledSourceWithResults);
+        const double zoomCenterX = source.width() / 2 - offsetX;
+        const double zoomCenterY = source.height() / 2 - offsetY;
+
+        const double srcVisibleWidth = getSourceImageVisibleWidth();
+        const double srcVisibleHeight = getSourceImageVisibleHeigth();
+
+        const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
+        const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
+
+        QPainter resultPainter(&scaledAndCroppedSourceWithResults);
         for (const Result& result : results) {
             resultPainter.setPen(result.pen);
             if (!result.contour.empty()) {
@@ -228,8 +225,8 @@ void QResultImageView::drawResultsOnScaledSourceImage()
                 for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
                     const QPointF& point = result.contour[i];
                     QPoint& scaledPoint = scaledContour[i];
-                    scaledPoint.setX(static_cast<int>(std::round(point.x() * scaleFactor)));
-                    scaledPoint.setY(static_cast<int>(std::round(point.y() * scaleFactor)));
+                    scaledPoint.setX(static_cast<int>(std::round(point.x() - srcLeft) * scaleFactor));
+                    scaledPoint.setY(static_cast<int>(std::round(point.y() - srcTop) * scaleFactor));
                 }
                 resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
             }
@@ -237,8 +234,14 @@ void QResultImageView::drawResultsOnScaledSourceImage()
     }
 }
 
-void QResultImageView::updateCroppedSourceImageAndDestinationRect()
+void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
 {
+    const double scaleFactor = getScaleFactor();
+
+    Q_ASSERT(!isnan(scaleFactor));
+
+    const std::pair<double, const QPixmap*> scaledSource = getSourcePixmap(scaleFactor);
+
     const double zoomCenterX = source.width() / 2 - offsetX;
     const double zoomCenterY = source.height() / 2 - offsetY;
 
@@ -246,8 +249,8 @@ void QResultImageView::updateCroppedSourceImageAndDestinationRect()
     const double srcVisibleHeight = getSourceImageVisibleHeigth();
 
     // these two should be approximately equal
-    const double sourceScaleFactorX = scaledSource.width() / static_cast<double>(source.width());
-    const double sourceScaleFactorY = scaledSource.height() / static_cast<double>(source.height());
+    const double sourceScaleFactorX = scaledSource.second->width() / static_cast<double>(source.width());
+    const double sourceScaleFactorY = scaledSource.second->height() / static_cast<double>(source.height());
 
     const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
     const double srcRight = std::min(static_cast<double>(source.width()), srcLeft + srcVisibleWidth);
@@ -286,8 +289,12 @@ void QResultImageView::updateCroppedSourceImageAndDestinationRect()
         return QRect(x, y, width, height);
     };
 
-    const QRect scaledSourceRect = roundedRect(scaledSourceTopLeft, scaledSourceBottomRight);
-    croppedSource = scaledSourceWithResults.copy(scaledSourceRect);
+    const QRect croppedSourceRect = roundedRect(scaledSourceTopLeft, scaledSourceBottomRight);
+    croppedSource = scaledSource.second->copy(croppedSourceRect);
+
+    const int scaledWidth = static_cast<int>(std::round(scaleFactor / scaledSource.first * croppedSource.width()));
+    const int scaledHeight = static_cast<int>(std::round(scaleFactor / scaledSource.first * croppedSource.height()));
+    scaledAndCroppedSource = croppedSource.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
 
     destinationRect = roundedRect(dstTopLeft, dstBottomRight);
 }
@@ -408,7 +415,7 @@ void QResultImageView::considerActivatingSmoothTransformationTimer()
 {
     if (getEventualTransformationMode() == Qt::SmoothTransformation) {
         ++smoothTransformationPendingCounter;
-        QTimer::singleShot(1000, this, SLOT(performSmoothTransformation()));
+        QTimer::singleShot(100, this, SLOT(performSmoothTransformation()));
     }
 }
 
@@ -418,8 +425,7 @@ void QResultImageView::setResultsVisible(bool visible)
         resultsVisible = visible;
 
         if (!results.empty()) {
-            drawResultsOnScaledSourceImage();
-            updateCroppedSourceImageAndDestinationRect();
+            drawResultsToViewport();
             update();
         }
     }
@@ -538,8 +544,8 @@ void QResultImageView::panAbsolute(double offsetX, double offsetY)
     this->offsetY = offsetY;
 
     limitOffset();
-    updateCroppedSourceImageAndDestinationRect();
-    update();
+    redrawEverything(getInitialTransformationMode());
+    considerActivatingSmoothTransformationTimer();
 
     emit panned();
 }

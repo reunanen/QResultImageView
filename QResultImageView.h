@@ -65,10 +65,10 @@ private slots:
 private:
     void redrawEverything(Qt::TransformationMode transformationMode);
 
-    void updateScaledSourceImage(Qt::TransformationMode transformationMode);
+    void updateViewport(Qt::TransformationMode transformationMode);
+    void drawResultsToViewport();
+
     double getScaleFactor() const;
-    void drawResultsOnScaledSourceImage();
-    void updateCroppedSourceImageAndDestinationRect();
 
     double getSourceImageVisibleWidth() const;
     double getSourceImageVisibleHeigth() const;
@@ -107,13 +107,13 @@ private:
 
     void updateSourcePyramid();
 
-    const QPixmap* getSourcePixmap(double scaleFactor);
+    std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
 
     QPixmap source;
     std::map<double, QPixmap> sourcePyramid;
-    QPixmap scaledSource;
-    QPixmap scaledSourceWithResults;
     QPixmap croppedSource;
+    QPixmap scaledAndCroppedSource;
+    QPixmap scaledAndCroppedSourceWithResults;
 
     QRect destinationRect;
 
