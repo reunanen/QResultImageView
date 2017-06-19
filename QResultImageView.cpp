@@ -558,6 +558,10 @@ void QResultImageView::drawYardstick(QPainter& painter)
 
 void QResultImageView::panAbsolute(double offsetX, double offsetY)
 {
+    if (offsetX == this->offsetX && offsetY == this->offsetY) {
+        return;
+    }
+
     this->offsetX = offsetX;
     this->offsetY = offsetY;
 
