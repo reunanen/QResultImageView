@@ -118,23 +118,41 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
     const int newZoomLevel = std::min(std::max(zoomLevel + 4 * event->delta(), 0), getMaxZoomLevel());
-    if (newZoomLevel != zoomLevel) {
-        //const bool zoomingIn = newZoomLevel > zoomLevel;
 
-        QPointF sourcePointUnderMouseBefore = screenToSource(event->posF());
+    const QPointF point = event->posF();
+
+    zoom(newZoomLevel, &point);
+}
+
+void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
+{
+    if (newZoomLevel != zoomLevel) {
+
+        const auto getScreenPoint = [this, screenPoint]() {
+            if (screenPoint) {
+                return QPointF(*screenPoint);
+            }
+            else {
+                const QRect r = rect();
+                return QPointF(r.width() / 2.f, r.height() / 2.f);
+            }
+        };
+
+        const QPointF point = getScreenPoint();
+        QPointF sourcePointBefore = screenToSource(point);
 
         zoomLevel = newZoomLevel;
 
-        QPointF newScreenPos = sourceToScreen(sourcePointUnderMouseBefore);
-        QPointF offsetChange = (newScreenPos - event->posF()) * getImageScaler();
+        const QPointF newScreenPos = sourceToScreen(sourcePointBefore);
+        QPointF offsetChange = (newScreenPos - point) * getImageScaler();
 
         offsetX -= offsetChange.rx();
         offsetY -= offsetChange.ry();
 
-        QPointF sourcePointUnderMouseAfter = screenToSource(event->posF());
+        QPointF sourcePointAfter = screenToSource(point);
 
-        Q_ASSERT(fabs(sourcePointUnderMouseBefore.rx() - sourcePointUnderMouseAfter.rx()) < 1e-6);
-        Q_ASSERT(fabs(sourcePointUnderMouseBefore.ry() - sourcePointUnderMouseAfter.ry()) < 1e-6);
+        Q_ASSERT(fabs(sourcePointBefore.rx() - sourcePointAfter.rx()) < 1e-6);
+        Q_ASSERT(fabs(sourcePointBefore.ry() - sourcePointAfter.ry()) < 1e-6);
 
         limitOffset();
 
@@ -558,6 +576,11 @@ double QResultImageView::getOffsetX() const
 double QResultImageView::getOffsetY() const
 {
     return offsetY;
+}
+
+int QResultImageView::getZoomLevel() const
+{
+    return zoomLevel;
 }
 
 void QResultImageView::setResultPolygons()

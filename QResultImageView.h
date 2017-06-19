@@ -44,6 +44,11 @@ public:
     void panAbsolute(double offsetX, double offsetY);
     void panRelative(double offsetX, double offsetY); // TODO
 
+    void zoom(int newZoomLevel, const QPointF* screenPoint = nullptr);
+
+    // The magnification required to fit the full source in the destination window when zoomLevel = 0.
+    double getDefaultMagnification() const;
+
 signals:
     void panned();
     void zoomed();
@@ -59,6 +64,10 @@ protected:
     double getOffsetX() const;
     double getOffsetY() const;
 
+    // The max zoom level depends on the source image size.
+    int getMaxZoomLevel() const;
+    int getZoomLevel() const;
+
 private slots:
     void performSmoothTransformation();
 
@@ -73,9 +82,6 @@ private:
     double getSourceImageVisibleWidth() const;
     double getSourceImageVisibleHeigth() const;
 
-    // The magnification required to fit the full source in the destination window when zoomLevel = 0.
-    double getDefaultMagnification() const;
-
     // Zoom level selected by mouse wheel or so.
     // Returns a value in the range ]0.0, 1.0] as follows:
     // 1.0 means no zooming-in; assuming there's no offset, the full source image fits in the destination window
@@ -84,9 +90,6 @@ private:
 
     // The effective zoom level multiplied by the default magnification.
     double getImageScaler() const;
-
-    // The max zoom level depends on the source image size.
-    int getMaxZoomLevel() const;
 
     void limitOffset();
 
