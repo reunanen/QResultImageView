@@ -67,6 +67,13 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
 {
     checkMousePan(event);
     checkMouseOnResult(event);
+
+    emit mouseAtCoordinates(screenToSource(event->pos()));
+}
+
+void QResultImageView::leaveEvent(QEvent*)
+{
+    emit mouseLeft();
 }
 
 void QResultImageView::checkMousePan(const QMouseEvent *event)

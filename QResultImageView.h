@@ -54,10 +54,13 @@ signals:
     void zoomed();
     void mouseOnResult(size_t resultIndex);
     void mouseNotOnResult();
+    void mouseAtCoordinates(QPointF sourcePoint);
+    void mouseLeft();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void leaveEvent(QEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
 
