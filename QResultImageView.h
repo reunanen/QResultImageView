@@ -13,6 +13,8 @@ public:
 
     void setImage(const QImage& image);
 
+    void setImagePyramid(const std::vector<QImage>& imagePyramid);
+
     struct Result {
         QPen pen;
         std::vector<QPointF> contour;

@@ -18,6 +18,22 @@ void QResultImageView::setImage(const QImage& image)
     redrawEverything(getEventualTransformationMode());
 }
 
+void QResultImageView::setImagePyramid(const std::vector<QImage>& imagePyramid)
+{
+    sourceImage = imagePyramid[0];
+    sourcePixmap = QPixmap();
+
+    sourceImagePyramid.clear();
+    sourcePixmapPyramid.clear();
+
+    for (size_t i = 1, end = imagePyramid.size(); i < end; ++i) {
+        const double scaleFactor = std::sqrt(imagePyramid[i].width() * imagePyramid[i].height() / static_cast<double>(sourceImage.width() * sourceImage.height()));
+        sourceImagePyramid[scaleFactor] = imagePyramid[i];
+    }
+
+    redrawEverything(getEventualTransformationMode());
+}
+
 void QResultImageView::setResults(const std::vector<Result>& results)
 {
     this->results = results;
