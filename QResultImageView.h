@@ -115,8 +115,10 @@ private:
 
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
 
-    QPixmap source;
-    std::map<double, QPixmap> sourcePyramid;
+    QImage sourceImage;
+    mutable QPixmap sourcePixmap;
+    std::map<double, QImage> sourceImagePyramid;
+    mutable std::map<double, QPixmap> sourcePixmapPyramid;
     QPixmap croppedSource;
     QPixmap scaledAndCroppedSource;
     QPixmap scaledAndCroppedSourceWithResults;

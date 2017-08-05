@@ -11,7 +11,8 @@ QResultImageView::QResultImageView(QWidget *parent)
 
 void QResultImageView::setImage(const QImage& image)
 {
-    source.convertFromImage(image);
+    sourceImage = image;
+    sourcePixmap = QPixmap();
     updateSourcePyramid();
 
     redrawEverything(getEventualTransformationMode());
@@ -28,7 +29,8 @@ void QResultImageView::setResults(const std::vector<Result>& results)
 
 void QResultImageView::setImageAndResults(const QImage& image, const Results& results)
 {
-    source.convertFromImage(image);
+    sourceImage = image;
+    sourcePixmap = QPixmap();
     updateSourcePyramid();
 
     this->results = results;
@@ -180,8 +182,8 @@ void QResultImageView::resizeEvent(QResizeEvent* event)
 
 double QResultImageView::getScaleFactor() const
 {
-    const int srcFullWidth = source.width();
-    const int srcFullHeight = source.height();
+    const int srcFullWidth = sourceImage.width();
+    const int srcFullHeight = sourceImage.height();
 
     const QRect r = rect();
 
@@ -205,20 +207,32 @@ void QResultImageView::redrawEverything(Qt::TransformationMode transformationMod
 
 std::pair<double, const QPixmap*> QResultImageView::getSourcePixmap(double scaleFactor) const
 {
-    if (scaleFactor > sourcePyramid.rbegin()->first) {
-        return std::make_pair(1.0, &source);
+    if (scaleFactor > sourceImagePyramid.rbegin()->first) {
+        if (sourcePixmap.width() == 0 && sourcePixmap.height() == 0) {
+            sourcePixmap.convertFromImage(sourceImage);
+        }
+        return std::make_pair(1.0, &sourcePixmap);
     }
     else {
-        auto i = sourcePyramid.begin();
+        auto i = sourceImagePyramid.begin();
         double foundScaleFactor = i->first;
-        const QPixmap* correspondingPixmap = &i->second;
+        const QImage* correspondingImage = &i->second;
         while (scaleFactor > i->first) {
-            Q_ASSERT(i != sourcePyramid.end());
+            Q_ASSERT(i != sourceImagePyramid.end());
             ++i;
             foundScaleFactor = i->first;
-            correspondingPixmap = &i->second;
+            correspondingImage = &i->second;
         }
-        Q_ASSERT(i != sourcePyramid.end());
+        Q_ASSERT(i != sourceImagePyramid.end());
+
+        auto j = sourcePixmapPyramid.find(foundScaleFactor);
+        if (j == sourcePixmapPyramid.end()) {
+            sourcePixmapPyramid[foundScaleFactor].convertFromImage(*correspondingImage);
+            j = sourcePixmapPyramid.find(foundScaleFactor);
+        }
+
+        const QPixmap* correspondingPixmap = &j->second;
+
         return std::make_pair(foundScaleFactor, correspondingPixmap);
     }
 }
@@ -233,8 +247,8 @@ void QResultImageView::drawResultsToViewport()
 
         const double scaleFactor = getScaleFactor();
 
-        const double zoomCenterX = source.width() / 2 - offsetX;
-        const double zoomCenterY = source.height() / 2 - offsetY;
+        const double zoomCenterX = sourceImage.width() / 2 - offsetX;
+        const double zoomCenterY = sourceImage.height() / 2 - offsetY;
 
         const double srcVisibleWidth = getSourceImageVisibleWidth();
         const double srcVisibleHeight = getSourceImageVisibleHeigth();
@@ -267,20 +281,20 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
 
     const std::pair<double, const QPixmap*> scaledSource = getSourcePixmap(scaleFactor);
 
-    const double zoomCenterX = source.width() / 2 - offsetX;
-    const double zoomCenterY = source.height() / 2 - offsetY;
+    const double zoomCenterX = sourceImage.width() / 2 - offsetX;
+    const double zoomCenterY = sourceImage.height() / 2 - offsetY;
 
     const double srcVisibleWidth = getSourceImageVisibleWidth();
     const double srcVisibleHeight = getSourceImageVisibleHeigth();
 
     // these two should be approximately equal
-    const double sourceScaleFactorX = scaledSource.second->width() / static_cast<double>(source.width());
-    const double sourceScaleFactorY = scaledSource.second->height() / static_cast<double>(source.height());
+    const double sourceScaleFactorX = scaledSource.second->width() / static_cast<double>(sourceImage.width());
+    const double sourceScaleFactorY = scaledSource.second->height() / static_cast<double>(sourceImage.height());
 
     const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
-    const double srcRight = std::min(static_cast<double>(source.width()), srcLeft + srcVisibleWidth);
+    const double srcRight = std::min(static_cast<double>(sourceImage.width()), srcLeft + srcVisibleWidth);
     const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
-    const double srcBottom = std::min(static_cast<double>(source.height()), srcTop + srcVisibleHeight);
+    const double srcBottom = std::min(static_cast<double>(sourceImage.height()), srcTop + srcVisibleHeight);
 
     const double scaledSourceLeft = srcLeft * sourceScaleFactorX;
     const double scaledSourceRight = srcRight * sourceScaleFactorX;
@@ -338,14 +352,14 @@ double QResultImageView::getSourceImageVisibleHeigth() const
 
 double QResultImageView::getDefaultMagnification() const
 {
-    if (source.size().isEmpty()) {
+    if (sourceImage.size().isEmpty()) {
         return 1.0;
     }
 
     const QRect r = rect();
 
-    const double magnificationX = source.width() / static_cast<double>(r.width());
-    const double magnificationY = source.height() / static_cast<double>(r.height());
+    const double magnificationX = sourceImage.width() / static_cast<double>(r.width());
+    const double magnificationY = sourceImage.height() / static_cast<double>(r.height());
     const double magnification = std::max(magnificationX, magnificationY);
 
     return magnification;
@@ -376,21 +390,21 @@ double QResultImageView::getImageScaler() const
 int QResultImageView::getMaxZoomLevel() const
 {
     const int maxZoomLevelMultiplier = 4; // largely empirical
-    return maxZoomLevelMultiplier * std::max(0, std::min(source.width(), source.height()));
+    return maxZoomLevelMultiplier * std::max(0, std::min(sourceImage.width(), sourceImage.height()));
 }
 
 void QResultImageView::limitOffset()
 {
-    offsetX = std::max(-source.width() / 2.0, std::min(source.width() / 2.0, offsetX));
-    offsetY = std::max(-source.height() / 2.0, std::min(source.height() / 2.0, offsetY));
+    offsetX = std::max(-sourceImage.width() / 2.0, std::min(sourceImage.width() / 2.0, offsetX));
+    offsetY = std::max(-sourceImage.height() / 2.0, std::min(sourceImage.height() / 2.0, offsetY));
 }
 
 QPointF QResultImageView::screenToSource(const QPointF& screenPoint) const
 {
     const double imageScaler = getImageScaler();
     const QRect r(rect());
-    qreal sourceX = screenPoint.x() * imageScaler - (r.width() * imageScaler - source.width()) / 2 - offsetX;
-    qreal sourceY = screenPoint.y() * imageScaler - (r.height() * imageScaler - source.height()) / 2 - offsetY;
+    qreal sourceX = screenPoint.x() * imageScaler - (r.width() * imageScaler - sourceImage.width()) / 2 - offsetX;
+    qreal sourceY = screenPoint.y() * imageScaler - (r.height() * imageScaler - sourceImage.height()) / 2 - offsetY;
     return QPointF(sourceX, sourceY);
 }
 
@@ -398,8 +412,8 @@ QPointF QResultImageView::sourceToScreen(const QPointF& sourcePoint) const
 {
     const double imageScaler = getImageScaler();
     const QRect r(rect());
-    qreal screenX = (r.width() - source.width() / imageScaler) / 2 + (sourcePoint.x() + offsetX) / imageScaler;
-    qreal screenY = (r.height() - source.height() / imageScaler) / 2 + (sourcePoint.y() + offsetY) / imageScaler;
+    qreal screenX = (r.width() - sourceImage.width() / imageScaler) / 2 + (sourcePoint.x() + offsetX) / imageScaler;
+    qreal screenY = (r.height() - sourceImage.height() / imageScaler) / 2 + (sourcePoint.y() + offsetY) / imageScaler;
     return QPointF(screenX, screenY);
 }
 
@@ -610,15 +624,18 @@ void QResultImageView::setResultPolygons()
 
 void QResultImageView::updateSourcePyramid()
 {
+    sourceImagePyramid.clear();
+    sourcePixmapPyramid.clear();
+
     const Qt::TransformationMode mode = transformationMode == AlwaysFastTransformation
             ? Qt::FastTransformation
             : Qt::SmoothTransformation;
 
     double scaleFactor = 1.0;
-    double width = source.width();
-    double height = source.height();
+    double width = sourceImage.width();
+    double height = sourceImage.height();
 
-    const QPixmap* previous = &source;
+    const QImage* previous = &sourceImage;
     const double step = 2.0;
 
     while (width > 50 && height > 50) {
@@ -626,8 +643,8 @@ void QResultImageView::updateSourcePyramid()
         width /= step;
         height /= step;
 
-        sourcePyramid[scaleFactor] = previous->scaled(QSize(std::round(width), std::round(height)), Qt::IgnoreAspectRatio, mode);
+        sourceImagePyramid[scaleFactor] = previous->scaled(QSize(std::round(width), std::round(height)), Qt::IgnoreAspectRatio, mode);
 
-        previous = &sourcePyramid.rbegin()->second;
+        previous = &sourceImagePyramid.rbegin()->second;
     }
 }
