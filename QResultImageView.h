@@ -26,6 +26,8 @@ public:
 
     void setImageAndResults(const QImage& image, const Results& results);
 
+    void setImagePyramidAndResults(const std::vector<QImage>& imagePyramid, const Results& results);
+
     enum TransformationMode {
         AlwaysFastTransformation, // most responsive, but may not look great on some images
         SmoothTransformationWhenZoomedOut, // least responsive, but may look best

@@ -55,6 +55,25 @@ void QResultImageView::setImageAndResults(const QImage& image, const Results& re
     redrawEverything(getEventualTransformationMode());
 }
 
+void QResultImageView::setImagePyramidAndResults(const std::vector<QImage>& imagePyramid, const Results& results)
+{
+    sourceImage = imagePyramid[0];
+    sourcePixmap = QPixmap();
+
+    sourceImagePyramid.clear();
+    sourcePixmapPyramid.clear();
+
+    for (size_t i = 1, end = imagePyramid.size(); i < end; ++i) {
+        const double scaleFactor = std::sqrt(imagePyramid[i].width() * imagePyramid[i].height() / static_cast<double>(sourceImage.width() * sourceImage.height()));
+        sourceImagePyramid[scaleFactor] = imagePyramid[i];
+    }
+
+    this->results = results;
+    setResultPolygons();
+
+    redrawEverything(getEventualTransformationMode());
+}
+
 void QResultImageView::setTransformationMode(TransformationMode newTransformationMode)
 {
     if (newTransformationMode != transformationMode) {
