@@ -20,7 +20,12 @@ void QResultImageView::setImage(const QImage& image)
 
 void QResultImageView::setImagePyramid(const std::vector<QImage>& imagePyramid)
 {
-    sourceImage = imagePyramid[0];
+    if (!imagePyramid.empty()) {
+        sourceImage = imagePyramid[0];
+    }
+    else {
+        sourceImage = QImage();
+    }
     sourcePixmap = QPixmap();
 
     sourceImagePyramid.clear();
@@ -57,7 +62,12 @@ void QResultImageView::setImageAndResults(const QImage& image, const Results& re
 
 void QResultImageView::setImagePyramidAndResults(const std::vector<QImage>& imagePyramid, const Results& results)
 {
-    sourceImage = imagePyramid[0];
+    if (!imagePyramid.empty()) {
+        sourceImage = imagePyramid[0];
+    }
+    else {
+        sourceImage = QImage();
+    }
     sourcePixmap = QPixmap();
 
     sourceImagePyramid.clear();
