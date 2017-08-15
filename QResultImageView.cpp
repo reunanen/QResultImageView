@@ -115,7 +115,15 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     checkMousePan(event);
     checkMouseOnResult(event);
 
-    emit mouseAtCoordinates(screenToSource(event->pos()));
+    const QPointF sourceCoordinate = screenToSource(event->pos());
+
+    // Need to truncate here; rounding isn't the correct thing to do
+    QPoint point(static_cast<int>(sourceCoordinate.x()), static_cast<int>(sourceCoordinate.y()));
+    int pixelIndex = -1;
+    if (sourceImage.valid(point)) {
+        pixelIndex = sourceImage.pixelIndex(point);
+    }
+    emit mouseAtCoordinates(sourceCoordinate, pixelIndex);
 }
 
 void QResultImageView::leaveEvent(QEvent*)

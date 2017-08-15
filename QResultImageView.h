@@ -58,7 +58,7 @@ signals:
     void zoomed();
     void mouseOnResult(size_t resultIndex);
     void mouseNotOnResult();
-    void mouseAtCoordinates(QPointF sourcePoint);
+    void mouseAtCoordinates(QPointF sourcePoint, int pixelIndex); // pixelIndex is -1 if it's not valid
     void mouseLeft();
 
 protected:
