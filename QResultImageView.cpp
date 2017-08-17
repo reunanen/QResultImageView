@@ -179,7 +179,12 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
-    const int newZoomLevel = std::min(std::max(zoomLevel + 4 * event->delta(), 0), getMaxZoomLevel());
+    const int zoomMultiplier
+            = (event->modifiers() & Qt::ShiftModifier)
+            ? 20
+            : 4;
+
+    const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * event->delta(), 0), getMaxZoomLevel());
 
     const QPointF point = event->posF();
 
