@@ -107,8 +107,11 @@ private:
 
     void considerActivatingSmoothTransformationTimer();
 
-    QPointF screenToSource(const QPointF& screenPoint) const;
-    QPointF sourceToScreen(const QPointF& sourcePoint) const;
+    QPointF screenToSourceIdeal(const QPointF& screenPoint) const;
+    QPointF sourceToScreenIdeal(const QPointF& sourcePoint) const;
+
+    QPointF screenToSourceActual(const QPointF& screenPoint) const;
+    QPointF sourceToScreenActual(const QPointF& sourcePoint) const;
 
     void checkMousePan(const QMouseEvent* event);
     void checkMouseOnResult(const QMouseEvent* event);
@@ -123,10 +126,12 @@ private:
     mutable QPixmap sourcePixmap;
     std::map<double, QImage> sourceImagePyramid;
     mutable std::map<double, QPixmap> sourcePixmapPyramid;
+
     QPixmap croppedSource;
     QPixmap scaledAndCroppedSource;
     QPixmap scaledAndCroppedSourceWithResults;
 
+    QRect croppedSourceRect;
     QRect destinationRect;
 
     std::vector<QPolygonF> resultPolygons;
