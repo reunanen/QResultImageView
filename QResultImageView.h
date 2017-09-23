@@ -39,6 +39,7 @@ public:
     void setTransformationMode(TransformationMode newTransformationMode);
 
     void setResultsVisible(bool visible);
+    void setMaskVisible(bool visible);
 
     void resetZoomAndPan();
 

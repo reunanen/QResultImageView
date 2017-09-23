@@ -2,6 +2,7 @@
 #include <QPainter>
 #include <QMouseEvent>
 #include <QApplication>
+#include <QMessageBox>
 #include <qtimer.h>
 
 QResultImageView::QResultImageView(QWidget *parent)
@@ -191,6 +192,13 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
 void QResultImageView::checkMouseMark(const QMouseEvent* event)
 {
     Q_ASSERT(event->buttons() & Qt::LeftButton);
+
+    if (leftMouseMode == LeftMouseMode::Mark || leftMouseMode == LeftMouseMode::Erase) {
+        if (!maskVisible) {
+            QMessageBox::warning(this, tr("Can't do that"), tr("The markings can be edited only when visible"));
+            return;
+        }
+    }
 
     bool update = false;
 
@@ -700,6 +708,18 @@ void QResultImageView::setResultsVisible(bool visible)
         resultsVisible = visible;
 
         if (!results.empty()) {
+            drawResultsToViewport();
+            update();
+        }
+    }
+}
+
+void QResultImageView::setMaskVisible(bool visible)
+{
+    if (maskVisible != visible) {
+        maskVisible = visible;
+
+        if (!maskPixmap.isNull()) {
             drawResultsToViewport();
             update();
         }
