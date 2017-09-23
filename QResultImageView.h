@@ -53,6 +53,14 @@ public:
     // The magnification required to fit the full source in the destination window when zoomLevel = 0.
     double getDefaultMagnification() const;
 
+    enum LeftMouseMode {
+        Pan,
+        Mark,
+        Erase
+    };
+
+    void setLeftMouseMode(LeftMouseMode leftMouseMode);
+
 signals:
     void panned();
     void zoomed();
@@ -154,6 +162,8 @@ private:
     bool resultsVisible = true;
 
     double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
+
+    LeftMouseMode leftMouseMode = LeftMouseMode::Pan;
 };
 
 #endif // QRESULTIMAGEVIEW_H

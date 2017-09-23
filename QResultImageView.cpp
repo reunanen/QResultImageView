@@ -6,6 +6,8 @@
 QResultImageView::QResultImageView(QWidget *parent)
     : QWidget(parent)
 {
+    setLeftMouseMode(LeftMouseMode::Pan);
+
     setMouseTracking(true);
 }
 
@@ -138,22 +140,33 @@ void QResultImageView::leaveEvent(QEvent*)
 
 void QResultImageView::checkMousePan(const QMouseEvent *event)
 {
-    if (hasPreviousMouseCoordinates) {
-        if (event->buttons() & Qt::LeftButton) {
-            const double imageScaler = getImageScaler();
-            offsetX += (event->x() - previousMouseX) * imageScaler;
-            offsetY += (event->y() - previousMouseY) * imageScaler;
-            limitOffset();
-            redrawEverything(getInitialTransformationMode());
-            considerActivatingSmoothTransformationTimer();
+    if (leftMouseMode == LeftMouseMode::Pan) {
+        if (hasPreviousMouseCoordinates) {
+            if (event->buttons() & Qt::LeftButton) {
+                const double imageScaler = getImageScaler();
+                offsetX += (event->x() - previousMouseX) * imageScaler;
+                offsetY += (event->y() - previousMouseY) * imageScaler;
+                limitOffset();
+                redrawEverything(getInitialTransformationMode());
+                considerActivatingSmoothTransformationTimer();
 
-            emit panned();
+                emit panned();
+            }
         }
-    }
 
-    hasPreviousMouseCoordinates = true;
-    previousMouseX = event->x();
-    previousMouseY = event->y();
+        hasPreviousMouseCoordinates = true;
+        previousMouseX = event->x();
+        previousMouseY = event->y();
+    }
+    else if (leftMouseMode == LeftMouseMode::Mark) {
+
+    }
+    else if (leftMouseMode == LeftMouseMode::Erase) {
+
+    }
+    else {
+        Q_ASSERT(false);
+    }
 }
 
 void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
@@ -745,5 +758,17 @@ void QResultImageView::updateSourcePyramid()
         sourceImagePyramid[scaleFactor] = previous->scaled(QSize(std::round(width), std::round(height)), Qt::IgnoreAspectRatio, mode);
 
         previous = &sourceImagePyramid.rbegin()->second;
+    }
+}
+
+void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
+{
+    this->leftMouseMode = leftMouseMode;
+
+    switch(leftMouseMode) {
+    case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
+    case LeftMouseMode::Mark: setCursor(Qt::ArrowCursor); break;
+    case LeftMouseMode::Erase: setCursor(Qt::CrossCursor); break;
+    default: Q_ASSERT(false);
     }
 }
