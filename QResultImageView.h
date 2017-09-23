@@ -62,6 +62,8 @@ public:
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
     void setMarkingRadius(int newMarkingRadius);
 
+    const QPixmap& getMask();
+
 signals:
     void panned();
     void zoomed();
@@ -69,6 +71,7 @@ signals:
     void mouseNotOnResult();
     void mouseAtCoordinates(QPointF sourcePoint, int pixelIndex); // pixelIndex is -1 if it's not valid
     void mouseLeft();
+    void maskUpdated();
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -140,9 +143,7 @@ private:
     std::map<double, QImage> sourceImagePyramid;
     mutable std::map<double, QPixmap> sourcePixmapPyramid;
 
-    //QImage maskImage;
     mutable QPixmap maskPixmap;
-    //std::map<double, QImage> maskImagePyramid;
     mutable std::map<double, QPixmap> maskPixmapPyramid;
 
     QPixmap croppedSource;

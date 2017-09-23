@@ -230,6 +230,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     if (update) {
         redrawEverything(getInitialTransformationMode());
         considerActivatingSmoothTransformationTimer();
+        emit maskUpdated();
     }
 }
 
@@ -905,4 +906,9 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 void QResultImageView::setMarkingRadius(int newMarkingRadius)
 {
     markingRadius = newMarkingRadius;
+}
+
+const QPixmap& QResultImageView::getMask()
+{
+    return maskPixmap;
 }
