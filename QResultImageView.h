@@ -71,6 +71,7 @@ signals:
 
 protected:
     void paintEvent(QPaintEvent* event) override;
+    void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void leaveEvent(QEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
@@ -122,22 +123,35 @@ private:
     QPointF sourceToScreenActual(const QPointF& sourcePoint) const;
 
     void checkMousePan(const QMouseEvent* event);
+    void checkMouseMark(const QMouseEvent* event);
     void checkMouseOnResult(const QMouseEvent* event);
 
     void setResultPolygons();
 
     void updateSourcePyramid();
+    void updateMaskPyramid();
 
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
+    std::pair<double, const QPixmap*> getMaskPixmap(double scaleFactor);
+
+    double getMarkingRadius() const;
 
     QImage sourceImage;
     mutable QPixmap sourcePixmap;
     std::map<double, QImage> sourceImagePyramid;
     mutable std::map<double, QPixmap> sourcePixmapPyramid;
 
+    //QImage maskImage;
+    mutable QPixmap maskPixmap;
+    //std::map<double, QImage> maskImagePyramid;
+    mutable std::map<double, QPixmap> maskPixmapPyramid;
+
     QPixmap croppedSource;
     QPixmap scaledAndCroppedSource;
     QPixmap scaledAndCroppedSourceWithResults;
+
+    QPixmap croppedMask;
+    QPixmap scaledAndCroppedMask;
 
     QRect croppedSourceRect;
     QRect destinationRect;
@@ -160,6 +174,7 @@ private:
     int smoothTransformationPendingCounter = 0;
 
     bool resultsVisible = true;
+    bool maskVisible = true;
 
     double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
 

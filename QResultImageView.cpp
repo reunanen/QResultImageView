@@ -112,6 +112,13 @@ void QResultImageView::paintEvent(QPaintEvent* event)
     }
 }
 
+void QResultImageView::mousePressEvent(QMouseEvent *event)
+{
+    if (event->buttons() & Qt::LeftButton) {
+        checkMouseMark(event);
+    }
+}
+
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
 {
     const double scaleFactor = getScaleFactor();
@@ -140,9 +147,9 @@ void QResultImageView::leaveEvent(QEvent*)
 
 void QResultImageView::checkMousePan(const QMouseEvent *event)
 {
-    if (leftMouseMode == LeftMouseMode::Pan) {
-        if (hasPreviousMouseCoordinates) {
-            if (event->buttons() & Qt::LeftButton) {
+    if (event->buttons() & Qt::LeftButton) {
+        if (leftMouseMode == LeftMouseMode::Pan) {
+            if (hasPreviousMouseCoordinates) {
                 const double imageScaler = getImageScaler();
                 offsetX += (event->x() - previousMouseX) * imageScaler;
                 offsetY += (event->y() - previousMouseY) * imageScaler;
@@ -153,19 +160,63 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
                 emit panned();
             }
         }
-
-        hasPreviousMouseCoordinates = true;
-        previousMouseX = event->x();
-        previousMouseY = event->y();
+        else {
+            checkMouseMark(event);
+        }
     }
-    else if (leftMouseMode == LeftMouseMode::Mark) {
 
+    hasPreviousMouseCoordinates = true;
+    previousMouseX = event->x();
+    previousMouseY = event->y();
+}
+
+void QResultImageView::checkMouseMark(const QMouseEvent* event)
+{
+    Q_ASSERT(event->buttons() & Qt::LeftButton);
+
+    bool update = false;
+
+    const double markingRadius = getMarkingRadius();
+
+    const auto draw = [&](const QColor& color) {
+        // draw ellipse
+        QPainter painter(&maskPixmap);
+        painter.setPen(color);
+        painter.setBrush(color);
+        painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+        const QPointF screenPoint(event->x(), event->y());
+        const QPointF sourcePoint = screenToSourceActual(screenPoint);
+
+        if (markingRadius <= 1.0) {
+            painter.drawPoint(sourcePoint);
+        }
+        else {
+            painter.drawEllipse(sourcePoint, markingRadius, markingRadius);
+        }
+
+        update = true;
+    };
+
+    if (leftMouseMode == LeftMouseMode::Mark) {
+        if (maskPixmap.isNull()) {
+            maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
+            maskPixmap.fill(Qt::transparent); // force alpha channel
+        }
+
+        draw(QColor(255, 0, 0, 128));
     }
     else if (leftMouseMode == LeftMouseMode::Erase) {
-
+        if (!maskPixmap.isNull()) {
+            draw(Qt::black);
+        }
     }
-    else {
-        Q_ASSERT(false);
+
+    if (update) {
+        updateMaskPyramid();
+
+        redrawEverything(getInitialTransformationMode());
+        considerActivatingSmoothTransformationTimer();
     }
 }
 
@@ -313,37 +364,67 @@ std::pair<double, const QPixmap*> QResultImageView::getSourcePixmap(double scale
     }
 }
 
+std::pair<double, const QPixmap*> QResultImageView::getMaskPixmap(double scaleFactor)
+{
+    if (scaleFactor > maskPixmapPyramid.rbegin()->first) {
+        return std::make_pair(1.0, &maskPixmap);
+    }
+    else {
+        auto i = maskPixmapPyramid.begin();
+        double foundScaleFactor = i->first;
+        const QPixmap* correspondingPixmap = &i->second;
+        while (scaleFactor > i->first) {
+            Q_ASSERT(i != maskPixmapPyramid.end());
+            ++i;
+            foundScaleFactor = i->first;
+            correspondingPixmap = &i->second;
+        }
+        Q_ASSERT(i != maskPixmapPyramid.end());
+        return std::make_pair(foundScaleFactor, correspondingPixmap);
+    }
+}
+
 void QResultImageView::drawResultsToViewport()
 {
-    if (results.empty() || !resultsVisible) {
+    bool showMask = maskVisible && !scaledAndCroppedMask.isNull();
+    bool showResults = resultsVisible && !results.empty();
+
+    if (!showMask && !showResults) {
         scaledAndCroppedSourceWithResults = scaledAndCroppedSource;
     }
     else {
         scaledAndCroppedSourceWithResults = scaledAndCroppedSource.copy();
 
-        const double scaleFactor = getScaleFactor();
-
-        const double zoomCenterX = sourceImage.width() / 2 - offsetX;
-        const double zoomCenterY = sourceImage.height() / 2 - offsetY;
-
-        const double srcVisibleWidth = getSourceImageVisibleWidth();
-        const double srcVisibleHeight = getSourceImageVisibleHeigth();
-
-        const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
-        const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
-
         QPainter resultPainter(&scaledAndCroppedSourceWithResults);
-        for (const Result& result : results) {
-            resultPainter.setPen(result.pen);
-            if (!result.contour.empty()) {
-                std::vector<QPoint> scaledContour(result.contour.size());
-                for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
-                    const QPointF& point = result.contour[i];
-                    QPoint& scaledPoint = scaledContour[i];
-                    scaledPoint.setX(static_cast<int>(std::round(point.x() - srcLeft) * scaleFactor));
-                    scaledPoint.setY(static_cast<int>(std::round(point.y() - srcTop) * scaleFactor));
+
+        if (showMask) {
+            resultPainter.drawPixmap(0, 0, scaledAndCroppedMask);
+        }
+
+        if (showResults) {
+            const double scaleFactor = getScaleFactor();
+
+            const double zoomCenterX = sourceImage.width() / 2 - offsetX;
+            const double zoomCenterY = sourceImage.height() / 2 - offsetY;
+
+            const double srcVisibleWidth = getSourceImageVisibleWidth();
+            const double srcVisibleHeight = getSourceImageVisibleHeigth();
+
+            const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
+            const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
+
+            for (const Result& result : results) {
+                resultPainter.setPen(result.pen);
+                if (!result.contour.empty()) {
+                    std::vector<QPoint> scaledContour(result.contour.size());
+                    for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
+                        const QPointF& point = result.contour[i];
+                        QPoint& scaledPoint = scaledContour[i];
+                        scaledPoint.setX(static_cast<int>(std::round(point.x() - srcLeft) * scaleFactor));
+                        scaledPoint.setY(static_cast<int>(std::round(point.y() - srcTop) * scaleFactor));
+                    }
+                    resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
                 }
-                resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
             }
         }
     }
@@ -410,6 +491,12 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
     const int scaledWidth = static_cast<int>(std::round(scaleFactor / scaledSource.first * croppedSource.width()));
     const int scaledHeight = static_cast<int>(std::round(scaleFactor / scaledSource.first * croppedSource.height()));
     scaledAndCroppedSource = croppedSource.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
+
+    if (!maskPixmap.isNull()) {
+        const std::pair<double, const QPixmap*> scaledMask = getMaskPixmap(scaleFactor);
+        croppedMask = scaledMask.second->copy(croppedSourceRect);
+        scaledAndCroppedMask = croppedMask.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
+    }
 
     destinationRect = roundedRect(dstTopLeft, dstBottomRight);
 }
@@ -761,9 +848,38 @@ void QResultImageView::updateSourcePyramid()
     }
 }
 
+void QResultImageView::updateMaskPyramid()
+{
+    //maskImagePyramid.clear();
+    maskPixmapPyramid.clear();
+
+    const Qt::TransformationMode mode = transformationMode == AlwaysFastTransformation
+            ? Qt::FastTransformation
+            : Qt::SmoothTransformation;
+
+    double scaleFactor = 1.0;
+    double width = sourceImage.width();
+    double height = sourceImage.height();
+
+    const QPixmap* previous = &maskPixmap;
+    const double step = 2.0;
+
+    while (width > 50 && height > 50) {
+        scaleFactor /= step;
+        width /= step;
+        height /= step;
+
+        maskPixmapPyramid[scaleFactor] = previous->scaled(QSize(std::round(width), std::round(height)), Qt::IgnoreAspectRatio, mode);
+
+        previous = &maskPixmapPyramid.rbegin()->second;
+    }
+}
+
 void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 {
     this->leftMouseMode = leftMouseMode;
+
+    // TODO: make cursor depend on marking radius (or show what would be marked directly on the pixmap)
 
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
@@ -771,4 +887,13 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
     case LeftMouseMode::Erase: setCursor(Qt::CrossCursor); break;
     default: Q_ASSERT(false);
     }
+}
+
+double QResultImageView::getMarkingRadius() const
+{
+    // TODO: allow to set marking radius
+
+    const double maxZoomLevel = getMaxZoomLevel();
+    const double r = maxZoomLevel / zoomLevel;
+    return r * r;
 }
