@@ -1,6 +1,7 @@
 #include "QResultImageView.h"
 #include <QPainter>
 #include <QMouseEvent>
+#include <QApplication>
 #include <qtimer.h>
 
 QResultImageView::QResultImageView(QWidget *parent)
@@ -214,9 +215,14 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
     if (leftMouseMode == LeftMouseMode::Mark) {
         if (maskPixmap.isNull()) {
+            QApplication::setOverrideCursor(Qt::WaitCursor);
+            QApplication::processEvents(); // actually update the cursor
+
             maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
             maskPixmap.fill(Qt::transparent); // force alpha channel
             updateMaskPyramid();
+
+            QApplication::restoreOverrideCursor();
         }
 
         draw(QColor(255, 0, 0, 128));
