@@ -135,8 +135,6 @@ private:
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
     std::pair<double, const QPixmap*> getMaskPixmap(double scaleFactor);
 
-    double getMarkingRadius() const;
-
     QImage sourceImage;
     mutable QPixmap sourcePixmap;
     std::map<double, QImage> sourceImagePyramid;

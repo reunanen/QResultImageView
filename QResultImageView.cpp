@@ -176,23 +176,37 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
     bool update = false;
 
-    const double markingRadius = getMarkingRadius();
-
     const auto draw = [&](const QColor& color) {
         // draw ellipse
-        QPainter painter(&maskPixmap);
-        painter.setPen(color);
-        painter.setBrush(color);
-        painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+        const double effectiveMarkingRadius = markingRadius * getImageScaler();
 
         const QPointF screenPoint(event->x(), event->y());
         const QPointF sourcePoint = screenToSourceActual(screenPoint);
 
-        if (markingRadius <= 1.0) {
-            painter.drawPoint(sourcePoint);
-        }
-        else {
-            painter.drawEllipse(sourcePoint, markingRadius, markingRadius);
+        const auto draw = [&](QPixmap& pixmap, double scaleFactor) {
+            QPainter painter(&pixmap);
+            painter.setPen(color);
+            painter.setBrush(color);
+            painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+            const int x = static_cast<int>(sourcePoint.x() * scaleFactor);
+            const int y = static_cast<int>(sourcePoint.y() * scaleFactor);
+            QPoint center(x, y);
+
+            if (effectiveMarkingRadius * scaleFactor <= 0.5) {
+                painter.drawPoint(center);
+            }
+            else {
+                const int r = static_cast<int>(std::round(effectiveMarkingRadius * scaleFactor));
+                painter.drawEllipse(center, r, r);
+            }
+        };
+
+        draw(maskPixmap, 1.0);
+
+        for (auto& maskPixmapPyramidItem : maskPixmapPyramid) {
+            draw(maskPixmapPyramidItem.second, maskPixmapPyramidItem.first);
         }
 
         update = true;
@@ -202,6 +216,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
         if (maskPixmap.isNull()) {
             maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
             maskPixmap.fill(Qt::transparent); // force alpha channel
+            updateMaskPyramid();
         }
 
         draw(QColor(255, 0, 0, 128));
@@ -213,8 +228,6 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     }
 
     if (update) {
-        updateMaskPyramid();
-
         redrawEverything(getInitialTransformationMode());
         considerActivatingSmoothTransformationTimer();
     }
@@ -887,15 +900,6 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
     case LeftMouseMode::Erase: setCursor(Qt::CrossCursor); break;
     default: Q_ASSERT(false);
     }
-}
-
-double QResultImageView::getMarkingRadius() const
-{
-    // TODO: allow to set marking radius
-
-    const double maxZoomLevel = getMaxZoomLevel();
-    const double r = maxZoomLevel / zoomLevel;
-    return markingRadius * r;
 }
 
 void QResultImageView::setMarkingRadius(int newMarkingRadius)
