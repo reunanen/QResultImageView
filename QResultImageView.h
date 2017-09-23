@@ -60,6 +60,7 @@ public:
     };
 
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
+    void setMarkingRadius(int newMarkingRadius);
 
 signals:
     void panned();
@@ -179,6 +180,8 @@ private:
     double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
 
     LeftMouseMode leftMouseMode = LeftMouseMode::Pan;
+
+    int markingRadius = 10;
 };
 
 #endif // QRESULTIMAGEVIEW_H

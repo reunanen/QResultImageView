@@ -208,7 +208,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     }
     else if (leftMouseMode == LeftMouseMode::Erase) {
         if (!maskPixmap.isNull()) {
-            draw(Qt::black);
+            draw(Qt::transparent);
         }
     }
 
@@ -895,5 +895,10 @@ double QResultImageView::getMarkingRadius() const
 
     const double maxZoomLevel = getMaxZoomLevel();
     const double r = maxZoomLevel / zoomLevel;
-    return r * r;
+    return markingRadius * r;
+}
+
+void QResultImageView::setMarkingRadius(int newMarkingRadius)
+{
+    markingRadius = newMarkingRadius;
 }
