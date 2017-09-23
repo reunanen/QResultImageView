@@ -13,6 +13,8 @@ public:
 
     void setImage(const QImage& image);
 
+    void setImageAndMask(const QImage& image, const QImage& mask);
+
     void setImagePyramid(const std::vector<QImage>& imagePyramid);
 
     struct Result {
@@ -133,7 +135,7 @@ private:
     void setResultPolygons();
 
     void updateSourcePyramid();
-    void updateMaskPyramid();
+    void updateMaskPyramid(bool isEmpty);
 
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
     std::pair<double, const QPixmap*> getMaskPixmap(double scaleFactor);

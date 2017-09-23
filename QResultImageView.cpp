@@ -14,9 +14,26 @@ QResultImageView::QResultImageView(QWidget *parent)
 
 void QResultImageView::setImage(const QImage& image)
 {
+    setImageAndMask(image, QImage());
+}
+
+void QResultImageView::setImageAndMask(const QImage& image, const QImage& mask)
+{
     sourceImage = image;
     sourcePixmap = QPixmap();
     updateSourcePyramid();
+
+    if (!mask.isNull()) {
+        maskPixmap.convertFromImage(mask);
+        updateMaskPyramid(false);
+    }
+    else {
+        maskPixmap = QPixmap();
+        maskPixmapPyramid.clear();
+
+        croppedMask = QPixmap();
+        scaledAndCroppedMask = QPixmap();
+    }
 
     redrawEverything(getEventualTransformationMode());
 }
@@ -220,7 +237,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
             maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
             maskPixmap.fill(Qt::transparent); // force alpha channel
-            updateMaskPyramid();
+            updateMaskPyramid(true);
 
             QApplication::restoreOverrideCursor();
         }
@@ -868,7 +885,7 @@ void QResultImageView::updateSourcePyramid()
     }
 }
 
-void QResultImageView::updateMaskPyramid()
+void QResultImageView::updateMaskPyramid(bool isEmpty)
 {
     //maskImagePyramid.clear();
     maskPixmapPyramid.clear();
@@ -889,7 +906,15 @@ void QResultImageView::updateMaskPyramid()
         width /= step;
         height /= step;
 
-        maskPixmapPyramid[scaleFactor] = previous->scaled(QSize(std::round(width), std::round(height)), Qt::IgnoreAspectRatio, mode);
+        const QSize scaledSize(std::round(width), std::round(height));
+
+        if (isEmpty) {
+            maskPixmapPyramid[scaleFactor] = QPixmap(scaledSize);
+            maskPixmapPyramid[scaleFactor].fill(Qt::transparent);
+        }
+        else {
+            maskPixmapPyramid[scaleFactor] = previous->scaled(scaledSize, Qt::IgnoreAspectRatio, mode);
+        }
 
         previous = &maskPixmapPyramid.rbegin()->second;
     }
