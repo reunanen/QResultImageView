@@ -132,7 +132,7 @@ void QResultImageView::paintEvent(QPaintEvent* event)
     QPainter painter(this);
     painter.drawPixmap(destinationRect, scaledAndCroppedSourceWithResults);
 
-    if (!isnan(pixelSize_m)) {
+    if (!std::isnan(pixelSize_m)) {
         drawYardstick(painter);
     }
 }
@@ -147,7 +147,7 @@ void QResultImageView::mousePressEvent(QMouseEvent *event)
 void QResultImageView::mouseMoveEvent(QMouseEvent *event)
 {
     const double scaleFactor = getScaleFactor();
-    if (isnan(scaleFactor)) {
+    if (std::isnan(scaleFactor)) {
         return;
     }
 
@@ -358,7 +358,7 @@ void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
 
 void QResultImageView::resizeEvent(QResizeEvent* event)
 {
-    if (!isnan(getScaleFactor())) {
+    if (!std::isnan(getScaleFactor())) {
         redrawEverything(getInitialTransformationMode());
         considerActivatingSmoothTransformationTimer();
     }
@@ -382,7 +382,7 @@ void QResultImageView::redrawEverything(Qt::TransformationMode transformationMod
 {
     const double scaleFactor = getScaleFactor();
 
-    if (!isnan(scaleFactor)) {
+    if (!std::isnan(scaleFactor)) {
         updateViewport(transformationMode);
         drawResultsToViewport();
         update();
@@ -491,7 +491,7 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
 {
     const double scaleFactor = getScaleFactor();
 
-    Q_ASSERT(!isnan(scaleFactor));
+    Q_ASSERT(!std::isnan(scaleFactor));
 
     const std::pair<double, const QPixmap*> scaledSource = getSourcePixmap(scaleFactor);
 
@@ -641,7 +641,7 @@ QPointF QResultImageView::screenToSourceActual(const QPointF& screenPoint) const
 {
     const double scaleFactor = getScaleFactor();
 
-    Q_ASSERT(!isnan(scaleFactor));
+    Q_ASSERT(!std::isnan(scaleFactor));
 
     const std::pair<double, const QPixmap*> scaledSource = getSourcePixmap(scaleFactor);
 
@@ -659,7 +659,7 @@ QPointF QResultImageView::sourceToScreenActual(const QPointF& sourcePoint) const
 {
     const double scaleFactor = getScaleFactor();
 
-    Q_ASSERT(!isnan(scaleFactor));
+    Q_ASSERT(!std::isnan(scaleFactor));
 
     const std::pair<double, const QPixmap*> scaledSource = getSourcePixmap(scaleFactor);
 
@@ -762,7 +762,7 @@ void QResultImageView::drawYardstick(QPainter& painter)
 {
     const double imageScaler = getImageScaler();
 
-    if (isnan(imageScaler)) {
+    if (std::isnan(imageScaler)) {
         return;
     }
 
