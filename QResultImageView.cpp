@@ -5,6 +5,12 @@
 #include <QMessageBox>
 #include <qtimer.h>
 
+namespace {
+    const QColor ignore = Qt::transparent;
+    const QColor clean = QColor(0, 255, 0, 64);
+    const QColor defect = QColor(255, 0, 0, 128);
+}
+
 QResultImageView::QResultImageView(QWidget *parent)
     : QWidget(parent)
 {
@@ -193,7 +199,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 {
     Q_ASSERT(event->buttons() & Qt::LeftButton);
 
-    if (leftMouseMode == LeftMouseMode::Mark || leftMouseMode == LeftMouseMode::Erase) {
+    if (leftMouseMode == LeftMouseMode::MarkClean || leftMouseMode == LeftMouseMode::MarkDefect || leftMouseMode == LeftMouseMode::EraseMarkings) {
         if (!maskVisible) {
             QMessageBox::warning(this, tr("Can't do that"), tr("The markings can be edited only when visible"));
             return;
@@ -238,23 +244,29 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
         update = true;
     };
 
-    if (leftMouseMode == LeftMouseMode::Mark) {
+    if (leftMouseMode == LeftMouseMode::MarkClean || leftMouseMode == LeftMouseMode::MarkDefect) {
         if (maskPixmap.isNull()) {
             QApplication::setOverrideCursor(Qt::WaitCursor);
             QApplication::processEvents(); // actually update the cursor
 
             maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
-            maskPixmap.fill(Qt::transparent); // force alpha channel
+            maskPixmap.fill(ignore);
             updateMaskPyramid(true);
 
             QApplication::restoreOverrideCursor();
         }
 
-        draw(QColor(255, 0, 0, 128));
+        if (leftMouseMode == LeftMouseMode::MarkClean) {
+            draw(clean);
+        }
+        else {
+            Q_ASSERT(leftMouseMode == LeftMouseMode::MarkDefect);
+            draw(defect);
+        }
     }
-    else if (leftMouseMode == LeftMouseMode::Erase) {
+    else if (leftMouseMode == LeftMouseMode::EraseMarkings) {
         if (!maskPixmap.isNull()) {
-            draw(Qt::transparent);
+            draw(ignore);
         }
     }
 
@@ -948,8 +960,9 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-    case LeftMouseMode::Mark: setCursor(Qt::ArrowCursor); break;
-    case LeftMouseMode::Erase: setCursor(Qt::CrossCursor); break;
+    case LeftMouseMode::MarkDefect: setCursor(Qt::PointingHandCursor); break;
+    case LeftMouseMode::MarkClean: setCursor(Qt::ArrowCursor); break;
+    case LeftMouseMode::EraseMarkings: setCursor(Qt::CrossCursor); break;
     default: Q_ASSERT(false);
     }
 }

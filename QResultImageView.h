@@ -58,8 +58,9 @@ public:
 
     enum LeftMouseMode {
         Pan,
-        Mark,
-        Erase
+        MarkClean,
+        MarkDefect,
+        EraseMarkings
     };
 
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
