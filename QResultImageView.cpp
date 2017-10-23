@@ -159,7 +159,7 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     // Need to truncate here; rounding isn't the correct thing to do
     QPoint point(static_cast<int>(sourceCoordinate.x()), static_cast<int>(sourceCoordinate.y()));
     int pixelIndex = -1;
-    if (sourceImage.valid(point) && sourceImage.depth() == 8) {
+    if (sourceImage.format() == QImage::Format_Indexed8 && sourceImage.valid(point)) {
         pixelIndex = sourceImage.pixelIndex(point);
     }
     emit mouseAtCoordinates(sourceCoordinate, pixelIndex);
