@@ -508,13 +508,6 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
     const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
     const double srcBottom = std::min(static_cast<double>(sourceImage.height()), srcTop + srcVisibleHeight);
 
-#if 0
-    const double scaledSourceLeft = srcLeft * sourceScaleFactorX;
-    const double scaledSourceRight = srcRight * sourceScaleFactorX;
-    const double scaledSourceTop = srcTop * sourceScaleFactorY;
-    const double scaledSourceBottom = srcBottom * sourceScaleFactorY;
-#endif
-
     const QPointF dstTopLeft = sourceToScreenIdeal(QPointF(srcLeft, srcTop));
     const QPointF dstBottomRight = sourceToScreenIdeal(QPointF(srcRight, srcBottom));
 
@@ -529,10 +522,17 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
     Q_ASSERT(fabs(srcBottomRight.x() - srcRight) < 1e-6);
     Q_ASSERT(fabs(srcBottomRight.y() - srcBottom) < 1e-6);
 
+#ifdef _DEBUG
+    const double scaledSourceLeft = srcLeft * sourceScaleFactorX;
+    const double scaledSourceRight = srcRight * sourceScaleFactorX;
+    const double scaledSourceTop = srcTop * sourceScaleFactorY;
+    const double scaledSourceBottom = srcBottom * sourceScaleFactorY;
+
     Q_ASSERT(fabs(scaledSourceTopLeft.x() - scaledSourceLeft) < 1e-6);
     Q_ASSERT(fabs(scaledSourceTopLeft.y() - scaledSourceTop) < 1e-6);
     Q_ASSERT(fabs(scaledSourceBottomRight.x() - scaledSourceRight) < 1e-6);
     Q_ASSERT(fabs(scaledSourceBottomRight.y() - scaledSourceBottom) < 1e-6);
+#endif
 
     const auto roundedRect = [](const QPointF& topLeft, const QPointF& bottomRight) {
         const int x = static_cast<int>(round(topLeft.x()));
