@@ -127,7 +127,7 @@ void QResultImageView::setTransformationMode(TransformationMode newTransformatio
     }
 }
 
-void QResultImageView::paintEvent(QPaintEvent* event)
+void QResultImageView::paintEvent(QPaintEvent* /*event*/)
 {
     QPainter painter(this);
     painter.drawPixmap(destinationRect, scaledAndCroppedSourceWithResults);
@@ -199,7 +199,11 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 {
     Q_ASSERT(event->buttons() & Qt::LeftButton);
 
-    if (leftMouseMode == LeftMouseMode::MarkClean || leftMouseMode == LeftMouseMode::MarkDefect || leftMouseMode == LeftMouseMode::EraseMarkings) {
+    if (sourceImage.size().isEmpty()) {
+        return;
+    }
+
+    if (leftMouseMode == LeftMouseMode::Annotate || leftMouseMode == LeftMouseMode::EraseAnnotations) {
         if (!maskVisible) {
             QMessageBox::warning(this, tr("Can't do that"), tr("The markings can be edited only when visible"));
             return;
@@ -244,7 +248,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
         update = true;
     };
 
-    if (leftMouseMode == LeftMouseMode::MarkClean || leftMouseMode == LeftMouseMode::MarkDefect) {
+    if (leftMouseMode == LeftMouseMode::Annotate) {
         if (maskPixmap.isNull()) {
             QApplication::setOverrideCursor(Qt::WaitCursor);
             QApplication::processEvents(); // actually update the cursor
@@ -256,15 +260,9 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
             QApplication::restoreOverrideCursor();
         }
 
-        if (leftMouseMode == LeftMouseMode::MarkClean) {
-            draw(clean);
-        }
-        else {
-            Q_ASSERT(leftMouseMode == LeftMouseMode::MarkDefect);
-            draw(defect);
-        }
+        draw(annotationColor);
     }
-    else if (leftMouseMode == LeftMouseMode::EraseMarkings) {
+    else if (leftMouseMode == LeftMouseMode::EraseAnnotations) {
         if (!maskPixmap.isNull()) {
             draw(ignore);
         }
@@ -356,7 +354,7 @@ void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
     }
 }
 
-void QResultImageView::resizeEvent(QResizeEvent* event)
+void QResultImageView::resizeEvent(QResizeEvent* /*event*/)
 {
     if (!std::isnan(getScaleFactor())) {
         redrawEverything(getInitialTransformationMode());
@@ -510,10 +508,12 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
     const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
     const double srcBottom = std::min(static_cast<double>(sourceImage.height()), srcTop + srcVisibleHeight);
 
+#if 0
     const double scaledSourceLeft = srcLeft * sourceScaleFactorX;
     const double scaledSourceRight = srcRight * sourceScaleFactorX;
     const double scaledSourceTop = srcTop * sourceScaleFactorY;
     const double scaledSourceBottom = srcBottom * sourceScaleFactorY;
+#endif
 
     const QPointF dstTopLeft = sourceToScreenIdeal(QPointF(srcLeft, srcTop));
     const QPointF dstBottomRight = sourceToScreenIdeal(QPointF(srcRight, srcBottom));
@@ -960,11 +960,15 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-    case LeftMouseMode::MarkDefect: setCursor(Qt::PointingHandCursor); break;
-    case LeftMouseMode::MarkClean: setCursor(Qt::ArrowCursor); break;
-    case LeftMouseMode::EraseMarkings: setCursor(Qt::CrossCursor); break;
+    case LeftMouseMode::Annotate: setCursor(Qt::ArrowCursor); break;
+    case LeftMouseMode::EraseAnnotations: setCursor(Qt::CrossCursor); break;
     default: Q_ASSERT(false);
     }
+}
+
+void QResultImageView::setAnnotationColor(QColor color)
+{
+    this->annotationColor = color;
 }
 
 void QResultImageView::setMarkingRadius(int newMarkingRadius)

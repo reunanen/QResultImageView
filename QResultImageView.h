@@ -58,12 +58,12 @@ public:
 
     enum LeftMouseMode {
         Pan,
-        MarkClean,
-        MarkDefect,
-        EraseMarkings
+        Annotate,
+        EraseAnnotations
     };
 
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
+    void setAnnotationColor(QColor color);
     void setMarkingRadius(int newMarkingRadius);
 
     const QPixmap& getMask();
@@ -183,6 +183,7 @@ private:
     double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
 
     LeftMouseMode leftMouseMode = LeftMouseMode::Pan;
+    QColor annotationColor = Qt::transparent;
 
     int markingRadius = 10;
 };
