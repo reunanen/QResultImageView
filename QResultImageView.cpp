@@ -961,7 +961,7 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
     case LeftMouseMode::Annotate: setCursor(Qt::ArrowCursor); break;
-    case LeftMouseMode::EraseAnnotations: setCursor(Qt::CrossCursor); break;
+    case LeftMouseMode::EraseAnnotations: setCursor(Qt::PointingHandCursor); break;
     default: Q_ASSERT(false);
     }
 }
