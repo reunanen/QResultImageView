@@ -383,8 +383,12 @@ void QResultImageView::redrawEverything(Qt::TransformationMode transformationMod
     if (!std::isnan(scaleFactor)) {
         updateViewport(transformationMode);
         drawResultsToViewport();
-        update();
     }
+    else {
+        scaledAndCroppedSourceWithResults.fill(Qt::transparent);
+    }
+
+    update();
 }
 
 std::pair<double, const QPixmap*> QResultImageView::getSourcePixmap(double scaleFactor) const
