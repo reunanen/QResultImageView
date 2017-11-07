@@ -65,6 +65,7 @@ public:
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
     void setAnnotationColor(QColor color);
     void setMarkingRadius(int newMarkingRadius);
+    void setFloodFillMode(bool floodFill);
 
     const QPixmap& getMask();
 
@@ -186,6 +187,7 @@ private:
     QColor annotationColor = Qt::transparent;
 
     int markingRadius = 10;
+    bool floodFillMode = false;
 };
 
 #endif // QRESULTIMAGEVIEW_H

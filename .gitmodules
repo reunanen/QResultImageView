@@ -1,0 +1,3 @@
+[submodule "qt-image-flood-fill"]
+	path = qt-image-flood-fill
+	url = https://github.com/reunanen/qt-image-flood-fill

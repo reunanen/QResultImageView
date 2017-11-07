@@ -4,6 +4,7 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <qtimer.h>
+#include "qt-image-flood-fill/qfloodfill.h"
 
 namespace {
     const QColor ignore = Qt::transparent;
@@ -211,6 +212,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     }
 
     bool update = false;
+    Qt::TransformationMode transformationMode = getInitialTransformationMode();
 
     const auto draw = [&](const QColor& color) {
         // draw ellipse
@@ -221,21 +223,37 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
         const QPointF sourcePoint = screenToSourceActual(screenPoint);
 
         const auto draw = [&](QPixmap& pixmap, double scaleFactor) {
-            QPainter painter(&pixmap);
-            painter.setPen(color);
-            painter.setBrush(color);
-            painter.setCompositionMode(QPainter::CompositionMode_Source);
 
-            const int x = static_cast<int>(sourcePoint.x() * scaleFactor);
-            const int y = static_cast<int>(sourcePoint.y() * scaleFactor);
-            QPoint center(x, y);
+            if (floodFillMode) {
+                QApplication::setOverrideCursor(Qt::WaitCursor);
 
-            if (effectiveMarkingRadius * scaleFactor <= 0.5) {
-                painter.drawPoint(center);
+                const int x = static_cast<int>(sourcePoint.x() * scaleFactor);
+                const int y = static_cast<int>(sourcePoint.y() * scaleFactor);
+                QPoint center(x, y);
+
+                FloodFill(pixmap, center, color);
+
+                QApplication::restoreOverrideCursor();
+
+                transformationMode = getEventualTransformationMode();
             }
             else {
-                const int r = static_cast<int>(std::round(effectiveMarkingRadius * scaleFactor));
-                painter.drawEllipse(center, r, r);
+                QPainter painter(&pixmap);
+                painter.setPen(color);
+                painter.setBrush(color);
+                painter.setCompositionMode(QPainter::CompositionMode_Source);
+
+                const int x = static_cast<int>(sourcePoint.x() * scaleFactor);
+                const int y = static_cast<int>(sourcePoint.y() * scaleFactor);
+                QPoint center(x, y);
+
+                if (effectiveMarkingRadius * scaleFactor <= 0.5) {
+                    painter.drawPoint(center);
+                }
+                else {
+                    const int r = static_cast<int>(std::round(effectiveMarkingRadius * scaleFactor));
+                    painter.drawEllipse(center, r, r);
+                }
             }
         };
 
@@ -269,7 +287,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     }
 
     if (update) {
-        redrawEverything(getInitialTransformationMode());
+        redrawEverything(transformationMode);
         considerActivatingSmoothTransformationTimer();
         emit maskUpdated();
     }
@@ -978,6 +996,11 @@ void QResultImageView::setAnnotationColor(QColor color)
 void QResultImageView::setMarkingRadius(int newMarkingRadius)
 {
     markingRadius = newMarkingRadius;
+}
+
+void QResultImageView::setFloodFillMode(bool floodFill)
+{
+    floodFillMode = floodFill;
 }
 
 const QPixmap& QResultImageView::getMask()
