@@ -13,6 +13,8 @@ public:
 
     void setImage(const QImage& image);
 
+    void setMask(const QImage& mask);
+
     void setImageAndMask(const QImage& image, const QImage& mask);
 
     void setImagePyramid(const std::vector<QImage>& imagePyramid);
@@ -82,6 +84,7 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
+    void mouseReleaseEvent(QMouseEvent *event) override;
     void leaveEvent(QEvent* event) override;
     void wheelEvent(QWheelEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -180,6 +183,7 @@ private:
 
     bool resultsVisible = true;
     bool maskVisible = true;
+    bool maskDirty = false;
 
     double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
 

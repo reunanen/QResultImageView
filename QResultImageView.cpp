@@ -25,6 +25,23 @@ void QResultImageView::setImage(const QImage& image)
     setImageAndMask(image, QImage());
 }
 
+void QResultImageView::setMask(const QImage& mask)
+{
+    if (!mask.isNull()) {
+        maskPixmap.convertFromImage(mask);
+        updateMaskPyramid(false);
+    }
+    else {
+        maskPixmap = QPixmap();
+        maskPixmapPyramid.clear();
+
+        croppedMask = QPixmap();
+        scaledAndCroppedMask = QPixmap();
+    }
+
+    redrawEverything(getEventualTransformationMode());
+}
+
 void QResultImageView::setImageAndMask(const QImage& image, const QImage& mask)
 {
     sourceImage = image;
@@ -166,6 +183,14 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     emit mouseAtCoordinates(sourceCoordinate, pixelIndex);
 }
 
+void QResultImageView::mouseReleaseEvent(QMouseEvent *event)
+{
+    if (maskDirty) {
+        emit maskUpdated();
+        maskDirty = false;
+    }
+}
+
 void QResultImageView::leaveEvent(QEvent*)
 {
     emit mouseLeft();
@@ -289,7 +314,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     if (update) {
         redrawEverything(transformationMode);
         considerActivatingSmoothTransformationTimer();
-        emit maskUpdated();
+        maskDirty = true;
     }
 }
 
