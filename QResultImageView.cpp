@@ -1009,9 +1009,22 @@ void QResultImageView::updateCursor()
 {
     // TODO: make cursor depend on marking radius (or show what would be marked directly on the pixmap)
 
+    const auto getAnnotationCursor = [this]() {
+        QPixmap pixmap(2 * markingRadius + 1, 2 * markingRadius + 1);
+        pixmap.fill(Qt::transparent);
+
+        QPainter painter(&pixmap);
+        painter.setPen(Qt::black);
+        painter.setBrush(annotationColor);
+        painter.drawEllipse(0, 0, pixmap.width() - 1, pixmap.height() - 1);
+
+        QCursor cursor(pixmap, markingRadius, markingRadius);
+        return cursor;
+    };
+
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-    case LeftMouseMode::Annotate: setCursor(floodFillMode ? bucketCursor : Qt::ArrowCursor); break;
+    case LeftMouseMode::Annotate: setCursor(floodFillMode ? bucketCursor : getAnnotationCursor()); break;
     case LeftMouseMode::EraseAnnotations: setCursor(Qt::PointingHandCursor); break;
     default: Q_ASSERT(false);
     }
@@ -1020,11 +1033,13 @@ void QResultImageView::updateCursor()
 void QResultImageView::setAnnotationColor(QColor color)
 {
     this->annotationColor = color;
+    updateCursor();
 }
 
 void QResultImageView::setMarkingRadius(int newMarkingRadius)
 {
     markingRadius = newMarkingRadius;
+    updateCursor();
 }
 
 void QResultImageView::setFloodFillMode(bool floodFill)
