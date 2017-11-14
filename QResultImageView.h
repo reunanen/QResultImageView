@@ -80,6 +80,7 @@ signals:
     void mouseNotOnResult();
     void mouseAtCoordinates(QPointF sourcePoint, int pixelIndex); // pixelIndex is -1 if it's not valid
     void mouseLeft();
+    void maskUpdating();
     void maskUpdated();
     void newMarkingRadius(int newMarkingRadius);
 

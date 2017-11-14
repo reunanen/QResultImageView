@@ -315,6 +315,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
         redrawEverything(transformationMode);
         considerActivatingSmoothTransformationTimer();
         maskDirty = true;
+        emit maskUpdating();
     }
 }
 
