@@ -183,7 +183,7 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     emit mouseAtCoordinates(sourceCoordinate, pixelIndex);
 }
 
-void QResultImageView::mouseReleaseEvent(QMouseEvent *event)
+void QResultImageView::mouseReleaseEvent(QMouseEvent* /*event*/)
 {
     if (maskDirty) {
         emit maskUpdated();
@@ -1015,7 +1015,13 @@ void QResultImageView::updateCursor()
 
         QPainter painter(&pixmap);
         painter.setPen(Qt::black);
-        painter.setBrush(annotationColor);
+        if (leftMouseMode == LeftMouseMode::Annotate) {
+            painter.setBrush(annotationColor);
+        }
+        else {
+            Q_ASSERT(leftMouseMode == LeftMouseMode::EraseAnnotations);
+            painter.setBrush(Qt::transparent);
+        }
         painter.drawEllipse(0, 0, pixmap.width() - 1, pixmap.height() - 1);
 
         QCursor cursor(pixmap, markingRadius, markingRadius);
@@ -1025,7 +1031,7 @@ void QResultImageView::updateCursor()
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
     case LeftMouseMode::Annotate: setCursor(floodFillMode ? bucketCursor : getAnnotationCursor()); break;
-    case LeftMouseMode::EraseAnnotations: setCursor(Qt::PointingHandCursor); break;
+    case LeftMouseMode::EraseAnnotations: setCursor(getAnnotationCursor()); break;
     default: Q_ASSERT(false);
     }
 }
