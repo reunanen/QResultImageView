@@ -71,6 +71,8 @@ public:
 
     const QPixmap& getMask();
 
+    void setBucketCursor(const QCursor& cursor);
+
 signals:
     void panned();
     void zoomed();
@@ -143,6 +145,8 @@ private:
     void updateSourcePyramid();
     void updateMaskPyramid(bool isEmpty);
 
+    void updateCursor();
+
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
     std::pair<double, const QPixmap*> getMaskPixmap(double scaleFactor);
 
@@ -192,6 +196,8 @@ private:
 
     int markingRadius = 10;
     bool floodFillMode = false;
+
+    QCursor bucketCursor = Qt::ArrowCursor;
 };
 
 #endif // QRESULTIMAGEVIEW_H

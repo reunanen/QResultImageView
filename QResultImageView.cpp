@@ -1002,12 +1002,16 @@ void QResultImageView::updateMaskPyramid(bool isEmpty)
 void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 {
     this->leftMouseMode = leftMouseMode;
+    updateCursor();
+}
 
+void QResultImageView::updateCursor()
+{
     // TODO: make cursor depend on marking radius (or show what would be marked directly on the pixmap)
 
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-    case LeftMouseMode::Annotate: setCursor(Qt::ArrowCursor); break;
+    case LeftMouseMode::Annotate: setCursor(floodFillMode ? bucketCursor : Qt::ArrowCursor); break;
     case LeftMouseMode::EraseAnnotations: setCursor(Qt::PointingHandCursor); break;
     default: Q_ASSERT(false);
     }
@@ -1026,9 +1030,15 @@ void QResultImageView::setMarkingRadius(int newMarkingRadius)
 void QResultImageView::setFloodFillMode(bool floodFill)
 {
     floodFillMode = floodFill;
+    updateCursor();
 }
 
 const QPixmap& QResultImageView::getMask()
 {
     return maskPixmap;
+}
+
+void QResultImageView::setBucketCursor(const QCursor& cursor)
+{
+    bucketCursor = cursor;
 }
