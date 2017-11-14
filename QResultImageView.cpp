@@ -346,13 +346,11 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
-    if (event->modifiers() & Qt::ControlModifier) {
-        if (leftMouseMode == Annotate || leftMouseMode == EraseAnnotations) {
-            // Ask the main application to change the marking radius
-            const int magnitude = std::max(abs(event->delta()) * markingRadius / 1000, 1);
-            const int sign = event->delta() > 0 ? 1 : (event->delta() < 0 ? -1 : 0);
-            emit newMarkingRadius(markingRadius + sign * magnitude);
-        }
+    if ((event->modifiers() & Qt::ControlModifier) && (leftMouseMode == Annotate || leftMouseMode == EraseAnnotations)) {
+        // Ask the main application to change the marking radius
+        const int magnitude = std::max(abs(event->delta()) * markingRadius / 1000, 1);
+        const int sign = event->delta() > 0 ? 1 : (event->delta() < 0 ? -1 : 0);
+        emit newMarkingRadius(markingRadius + sign * magnitude);
     }
     else {
         const int zoomMultiplier
