@@ -346,16 +346,26 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
-    const int zoomMultiplier
-            = (event->modifiers() & Qt::ShiftModifier)
-            ? 20
-            : 4;
+    if (event->modifiers() & Qt::ControlModifier) {
+        if (leftMouseMode == Annotate || leftMouseMode == EraseAnnotations) {
+            // Ask the main application to change the marking radius
+            const int magnitude = std::max(abs(event->delta()) * markingRadius / 1000, 1);
+            const int sign = event->delta() > 0 ? 1 : (event->delta() < 0 ? -1 : 0);
+            emit newMarkingRadius(markingRadius + sign * magnitude);
+        }
+    }
+    else {
+        const int zoomMultiplier
+                = (event->modifiers() & Qt::ShiftModifier)
+                ? 20
+                : 4;
 
-    const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * event->delta(), 0), getMaxZoomLevel());
+        const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * event->delta(), 0), getMaxZoomLevel());
 
-    const QPointF point = event->posF();
+        const QPointF point = event->posF();
 
-    zoom(newZoomLevel, &point);
+        zoom(newZoomLevel, &point);
+    }
 }
 
 void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
