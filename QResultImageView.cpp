@@ -509,13 +509,28 @@ void QResultImageView::drawResultsToViewport()
                 resultPainter.setPen(result.pen);
                 if (!result.contour.empty()) {
                     std::vector<QPoint> scaledContour(result.contour.size());
+                    bool allPointsAreSameWhenScaled = true;
+                    QPoint firstPointScaled;
                     for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
                         const QPointF& point = result.contour[i];
                         QPoint& scaledPoint = scaledContour[i];
                         scaledPoint.setX(static_cast<int>(std::round(point.x() - srcLeft) * scaleFactor));
                         scaledPoint.setY(static_cast<int>(std::round(point.y() - srcTop) * scaleFactor));
+                        if (i == 0) {
+                            firstPointScaled = scaledPoint;
+                        }
+                        else if (allPointsAreSameWhenScaled) {
+                            if (scaledPoint.x() != firstPointScaled.x() || scaledPoint.y() != firstPointScaled.y()) {
+                                allPointsAreSameWhenScaled = false;
+                            }
+                        }
                     }
-                    resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
+                    if (allPointsAreSameWhenScaled) {
+                        resultPainter.drawPoint(firstPointScaled);
+                    }
+                    else {
+                        resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
+                    }
                 }
             }
         }
