@@ -11,13 +11,24 @@ class QResultImageView : public QWidget
 public:
     explicit QResultImageView(QWidget *parent);
 
-    void setImage(const QImage& image);
+    // RAII token that invokes a redraw of the registered view(s) when it goes out of scope.
+    // NB: the token is expected to go out of scope before the registered views themselves!
+    class DelayedRedrawToken {
+    public:
+        DelayedRedrawToken();
+        virtual ~DelayedRedrawToken();
+        void registerToBeRedrawnWhenTokenIsDestructed(QResultImageView* resultImageView, const Qt::TransformationMode& transformationMode);
 
-    void setMask(const QImage& mask);
+    private:
+        DelayedRedrawToken(const DelayedRedrawToken&) = delete; // not construction-copyable
+        DelayedRedrawToken& operator=(const DelayedRedrawToken&) = delete; // non-assignment-copyable
 
-    void setImageAndMask(const QImage& image, const QImage& mask);
+        std::map<QResultImageView*, Qt::TransformationMode> registeredResultImageViews;
+    };
 
-    void setImagePyramid(const std::vector<QImage>& imagePyramid);
+    void setImage(const QImage& image, DelayedRedrawToken* delayedRedrawToken = nullptr);
+    void setMask(const QImage& mask, DelayedRedrawToken* delayedRedrawToken = nullptr);
+    void setImagePyramid(const std::vector<QImage>& imagePyramid, DelayedRedrawToken* delayedRedrawToken = nullptr);
 
     struct Result {
         QPen pen;
@@ -26,17 +37,15 @@ public:
 
     typedef std::vector<Result> Results;
 
-    void setResults(const Results& results);
-
-    void setImageAndResults(const QImage& image, const Results& results);
-
-    void setImagePyramidAndResults(const std::vector<QImage>& imagePyramid, const Results& results);
+    void setResults(const Results& results, DelayedRedrawToken* delayedRedrawToken = nullptr);
 
     enum TransformationMode {
         AlwaysFastTransformation, // most responsive, but may not look great on some images
         SmoothTransformationWhenZoomedOut, // least responsive, but may look best
         DelayedSmoothTransformationWhenZoomedOut // responsive and eventually good-looking
     };
+
+    void redrawEverything(Qt::TransformationMode transformationMode);
 
     void setTransformationMode(TransformationMode newTransformationMode);
 
@@ -104,8 +113,7 @@ private slots:
     void performSmoothTransformation();
 
 private:
-    void redrawEverything(Qt::TransformationMode transformationMode);
-
+    void registerOrRedraw(DelayedRedrawToken* delayedRedrawToken, const Qt::TransformationMode& transformationMode);
     void updateViewport(Qt::TransformationMode transformationMode);
     void drawResultsToViewport();
 

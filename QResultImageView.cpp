@@ -6,10 +6,29 @@
 #include <qtimer.h>
 #include "qt-image-flood-fill/qfloodfill.h"
 
-namespace {
-    const QColor ignore = Qt::transparent;
-    const QColor clean = QColor(0, 255, 0, 64);
-    const QColor defect = QColor(255, 0, 0, 128);
+QResultImageView::DelayedRedrawToken::DelayedRedrawToken()
+{}
+
+QResultImageView::DelayedRedrawToken::~DelayedRedrawToken()
+{
+    for (auto& i : registeredResultImageViews) {
+        i.first->redrawEverything(i.second);
+    }
+}
+
+void QResultImageView::DelayedRedrawToken::registerToBeRedrawnWhenTokenIsDestructed(QResultImageView* resultImageView, const Qt::TransformationMode& transformationMode)
+{
+    auto i = registeredResultImageViews.find(resultImageView);
+    if (i == registeredResultImageViews.end()) {
+        registeredResultImageViews[resultImageView] = transformationMode;
+    }
+    else if (i->second == Qt::FastTransformation && transformationMode == Qt::SmoothTransformation) {
+        // Upgrade to a smooth transformation
+        i->second = Qt::SmoothTransformation;
+    }
+    else {
+        // Already registered - nothing to do
+    }
 }
 
 QResultImageView::QResultImageView(QWidget *parent)
@@ -20,34 +39,17 @@ QResultImageView::QResultImageView(QWidget *parent)
     setMouseTracking(true);
 }
 
-void QResultImageView::setImage(const QImage& image)
-{
-    setImageAndMask(image, QImage());
-}
-
-void QResultImageView::setMask(const QImage& mask)
-{
-    if (!mask.isNull()) {
-        maskPixmap.convertFromImage(mask);
-        updateMaskPyramid(false);
-    }
-    else {
-        maskPixmap = QPixmap();
-        maskPixmapPyramid.clear();
-
-        croppedMask = QPixmap();
-        scaledAndCroppedMask = QPixmap();
-    }
-
-    redrawEverything(getEventualTransformationMode());
-}
-
-void QResultImageView::setImageAndMask(const QImage& image, const QImage& mask)
+void QResultImageView::setImage(const QImage& image, DelayedRedrawToken* delayedRedrawToken)
 {
     sourceImage = image;
     sourcePixmap = QPixmap();
     updateSourcePyramid();
 
+    registerOrRedraw(delayedRedrawToken, getEventualTransformationMode());
+}
+
+void QResultImageView::setMask(const QImage& mask, DelayedRedrawToken* delayedRedrawToken)
+{
     if (!mask.isNull()) {
         maskPixmap.convertFromImage(mask);
         updateMaskPyramid(false);
@@ -60,10 +62,10 @@ void QResultImageView::setImageAndMask(const QImage& image, const QImage& mask)
         scaledAndCroppedMask = QPixmap();
     }
 
-    redrawEverything(getEventualTransformationMode());
+    registerOrRedraw(delayedRedrawToken, getEventualTransformationMode());
 }
 
-void QResultImageView::setImagePyramid(const std::vector<QImage>& imagePyramid)
+void QResultImageView::setImagePyramid(const std::vector<QImage>& imagePyramid, DelayedRedrawToken* delayedRedrawToken)
 {
     if (!imagePyramid.empty()) {
         sourceImage = imagePyramid[0];
@@ -81,52 +83,31 @@ void QResultImageView::setImagePyramid(const std::vector<QImage>& imagePyramid)
         sourceImagePyramid[scaleFactor] = imagePyramid[i];
     }
 
-    redrawEverything(getEventualTransformationMode());
+    registerOrRedraw(delayedRedrawToken, getEventualTransformationMode());
 }
 
-void QResultImageView::setResults(const std::vector<Result>& results)
+void QResultImageView::setResults(const std::vector<Result>& results, DelayedRedrawToken* delayedRedrawToken)
 {
     this->results = results;
     setResultPolygons();
 
-    drawResultsToViewport();
-    update();
-}
-
-void QResultImageView::setImageAndResults(const QImage& image, const Results& results)
-{
-    sourceImage = image;
-    sourcePixmap = QPixmap();
-    updateSourcePyramid();
-
-    this->results = results;
-    setResultPolygons();
-
-    redrawEverything(getEventualTransformationMode());
-}
-
-void QResultImageView::setImagePyramidAndResults(const std::vector<QImage>& imagePyramid, const Results& results)
-{
-    if (!imagePyramid.empty()) {
-        sourceImage = imagePyramid[0];
+    if (delayedRedrawToken == nullptr) {
+        drawResultsToViewport();
+        update();
     }
     else {
-        sourceImage = QImage();
+        delayedRedrawToken->registerToBeRedrawnWhenTokenIsDestructed(this, getEventualTransformationMode()); // in fact update would be enough even here
     }
-    sourcePixmap = QPixmap();
+}
 
-    sourceImagePyramid.clear();
-    sourcePixmapPyramid.clear();
-
-    for (size_t i = 1, end = imagePyramid.size(); i < end; ++i) {
-        const double scaleFactor = std::sqrt(imagePyramid[i].width() * imagePyramid[i].height() / static_cast<double>(sourceImage.width() * sourceImage.height()));
-        sourceImagePyramid[scaleFactor] = imagePyramid[i];
+void QResultImageView::registerOrRedraw(DelayedRedrawToken* delayedRedrawToken, const Qt::TransformationMode& transformationMode)
+{
+    if (delayedRedrawToken != nullptr) {
+        delayedRedrawToken->registerToBeRedrawnWhenTokenIsDestructed(this, transformationMode);
     }
-
-    this->results = results;
-    setResultPolygons();
-
-    redrawEverything(getEventualTransformationMode());
+    else {
+        redrawEverything(transformationMode);
+    }
 }
 
 void QResultImageView::setTransformationMode(TransformationMode newTransformationMode)
@@ -297,7 +278,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
             QApplication::processEvents(); // actually update the cursor
 
             maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
-            maskPixmap.fill(ignore);
+            maskPixmap.fill(Qt::transparent);
             updateMaskPyramid(true);
 
             QApplication::restoreOverrideCursor();
@@ -307,7 +288,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     }
     else if (leftMouseMode == LeftMouseMode::EraseAnnotations) {
         if (!maskPixmap.isNull()) {
-            draw(ignore);
+            draw(Qt::transparent);
         }
     }
 
