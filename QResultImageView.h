@@ -92,6 +92,7 @@ signals:
     void maskUpdating();
     void maskUpdated();
     void newMarkingRadius(int newMarkingRadius);
+    void annotationsVisible(bool visible);
 
 protected:
     void paintEvent(QPaintEvent* event) override;

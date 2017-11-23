@@ -212,7 +212,11 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
     if (leftMouseMode == LeftMouseMode::Annotate || leftMouseMode == LeftMouseMode::EraseAnnotations) {
         if (!maskVisible) {
-            QMessageBox::warning(this, tr("Can't do that"), tr("The markings can be edited only when visible"));
+            const int answer = QMessageBox::question(this, tr("Can't do that - at least as such"), tr("The annotations can be edited only when visible.\n\nMake the annotations visible?"));
+            if (answer == QMessageBox::Yes) {
+                setMaskVisible(true);
+                emit annotationsVisible(true);
+            }
             return;
         }
     }
