@@ -185,7 +185,7 @@ private:
     double offsetX = 0;
     double offsetY = 0;
 
-    bool hasPreviousMouseCoordinates = 0;
+    bool hasPreviousMouseCoordinates = false;
     int previousMouseX = 0;
     int previousMouseY = 0;
 

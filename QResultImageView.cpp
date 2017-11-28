@@ -253,16 +253,38 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
                 painter.setBrush(color);
                 painter.setCompositionMode(QPainter::CompositionMode_Source);
 
-                const int x = static_cast<int>(sourcePoint.x() * scaleFactor);
-                const int y = static_cast<int>(sourcePoint.y() * scaleFactor);
-                QPoint center(x, y);
+                const QPoint endPoint(static_cast<int>(sourcePoint.x() * scaleFactor), static_cast<int>(sourcePoint.y() * scaleFactor));
 
-                if (effectiveMarkingRadius * scaleFactor <= 0.5) {
-                    painter.drawPoint(center);
-                }
-                else {
-                    const int r = static_cast<int>(std::round(effectiveMarkingRadius * scaleFactor));
-                    painter.drawEllipse(center, r, r);
+                const auto getStartPoint = [&]() {
+                    if (hasPreviousMouseCoordinates) {
+                        const QPointF previousSourcePoint(screenToSourceActual(QPoint(previousMouseX, previousMouseY)));
+                        const QPoint startPoint(static_cast<int>(previousSourcePoint.x() * scaleFactor), static_cast<int>(previousSourcePoint.y() * scaleFactor));
+                        return startPoint;
+                    }
+                    else {
+                        return endPoint;
+                    }
+                };
+
+                const QPoint startPoint = getStartPoint();
+
+                const int manhattanLength = (startPoint - endPoint).manhattanLength();
+
+                QPoint previousCenter;
+
+                for (int i = 0; i <= manhattanLength; ++i) {
+                    const QPoint center = startPoint + (endPoint - startPoint) * i / std::max(0, manhattanLength);
+
+                    if (i == 0 || center != previousCenter) {
+                        if (effectiveMarkingRadius * scaleFactor <= 0.5) {
+                            painter.drawPoint(center);
+                        }
+                        else {
+                            const int r = static_cast<int>(std::round(effectiveMarkingRadius * scaleFactor));
+                            painter.drawEllipse(center, r, r);
+                        }
+                        previousCenter = center;
+                    }
                 }
             }
         };
