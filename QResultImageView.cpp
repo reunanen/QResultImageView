@@ -132,7 +132,7 @@ void QResultImageView::paintEvent(QPaintEvent* /*event*/)
     QPainter painter(this);
     painter.drawPixmap(destinationRect, scaledAndCroppedSourceWithResults);
 
-    if (!std::isnan(pixelSize_m)) {
+    if (!std::isnan(pixelSize)) {
         drawYardstick(painter);
     }
 }
@@ -864,9 +864,11 @@ bool QResultImageView::isDefaultZoomAndPan() const
     return offsetX == 0 && offsetY == 0 && zoomLevel == 0;
 }
 
-void QResultImageView::setPixelSizeInMeters(double pixelSizeInMeters)
+void QResultImageView::setPixelSize(double pixelSize, const QString& unit, bool unitIsSI)
 {
-    pixelSize_m = pixelSizeInMeters;
+    this->pixelSize = pixelSize;
+    this->pixelSizeUnit = unit;
+    this->pixelSizeUnitIsSI = unitIsSI;
     update();
 }
 
@@ -882,31 +884,41 @@ void QResultImageView::drawYardstick(QPainter& painter)
 
     const int margin = 20;
 
-    const auto getYardstickSize_m = [&](int rectDimension) {
-        const double maxYardstickSize_m = (rectDimension - 2 * margin) * pixelSize_m * imageScaler;
+    const auto getYardstickSize = [&](int rectDimension) {
+        const double maxYardstickSize = (rectDimension - 2 * margin) * pixelSize * imageScaler;
 
         // round down to the nearest power of 10
-        double yardstickSize_m = pow(10, floor(log10(maxYardstickSize_m)));
+        double yardstickSize = pow(10, floor(log10(maxYardstickSize)));
 
-        if (2 * yardstickSize_m <= maxYardstickSize_m) {
-            yardstickSize_m = 2 * yardstickSize_m;
+        if (2 * yardstickSize <= maxYardstickSize) {
+            yardstickSize = 2 * yardstickSize;
         }
-        if (2.5 * yardstickSize_m <= maxYardstickSize_m) {
-            yardstickSize_m = 2.5 * yardstickSize_m;
+        if (2.5 * yardstickSize <= maxYardstickSize) {
+            yardstickSize = 2.5 * yardstickSize;
         }
 
-        return yardstickSize_m;
+        return yardstickSize;
     };
 
-    const auto getYardstickText = [](double yardstickSize_m) {
-        if (yardstickSize_m < 1e-3) {
-            return QString::number(yardstickSize_m * 1e6, 'g') + " um";
+    const auto getYardstickText = [this](double yardstickSize) {
+        if (yardstickSize < 1e-3) {
+            if (pixelSizeUnitIsSI) {
+                return QString::number(yardstickSize * 1e6, 'g') + " µ" + pixelSizeUnit;
+            }
+            else {
+                return QString::number(yardstickSize, 'f', 6) + " " + pixelSizeUnit;
+            }
         }
-        else if (yardstickSize_m < 1) {
-            return QString::number(yardstickSize_m * 1e3, 'f', 0) + " mm";
+        else if (yardstickSize < 1) {
+            if (pixelSizeUnitIsSI) {
+                return QString::number(yardstickSize * 1e3, 'f', 0) + " m" + pixelSizeUnit;
+            }
+            else {
+                return QString::number(yardstickSize, 'f', 3) + " " + pixelSizeUnit;
+            }
         }
         else {
-            return QString::number(yardstickSize_m, 'f', 0) + " m";
+            return QString::number(yardstickSize, 'f', 0) + " " + pixelSizeUnit;
         }
     };
 
@@ -925,10 +937,10 @@ void QResultImageView::drawYardstick(QPainter& painter)
     };
 
     if (r.width() > 8 * margin && r.height() > 2 * margin) {
-        const double yardstickSizeX_m = getYardstickSize_m(r.width());
+        const double yardstickSizeX = getYardstickSize(r.width());
 
         const int y = r.height() - margin;
-        const int w = std::round(yardstickSizeX_m / pixelSize_m / imageScaler);
+        const int w = std::round(yardstickSizeX / pixelSize / imageScaler);
 
         painter.setPen(Qt::white);
         painter.drawLine(margin, y - 1, margin + w, y - 1);
@@ -936,14 +948,14 @@ void QResultImageView::drawYardstick(QPainter& painter)
         painter.setPen(Qt::black);
         painter.drawLine(margin, y, margin + w, y);
 
-        drawOutlinedText(margin, y, w, margin, Qt::AlignRight | Qt::AlignTop, getYardstickText(yardstickSizeX_m));
+        drawOutlinedText(margin, y, w, margin, Qt::AlignRight | Qt::AlignTop, getYardstickText(yardstickSizeX));
     }
 
     if (r.height() > 8 * margin && r.width() > 2 * margin) {
-        const double yardstickSizeY_m = getYardstickSize_m(r.height());
+        const double yardstickSizeY = getYardstickSize(r.height());
 
         const int origin = r.height() - margin;
-        const int h = std::round(yardstickSizeY_m / pixelSize_m / imageScaler);
+        const int h = std::round(yardstickSizeY / pixelSize / imageScaler);
 
         painter.setPen(Qt::white);
         painter.drawLine(margin + 1, origin - h, margin + 1, origin - 1);
@@ -952,7 +964,7 @@ void QResultImageView::drawYardstick(QPainter& painter)
         painter.drawLine(margin, origin - h, margin, origin);
 
         painter.rotate(-90);
-        drawOutlinedText(-origin, 0, h, margin, Qt::AlignRight | Qt::AlignBottom, getYardstickText(yardstickSizeY_m));
+        drawOutlinedText(-origin, 0, h, margin, Qt::AlignRight | Qt::AlignBottom, getYardstickText(yardstickSizeY));
         painter.rotate(90);
     }
 }

@@ -57,7 +57,7 @@ public:
     // Has the user panned the view, or zoomed in or out? False if not.
     bool isDefaultZoomAndPan() const;
 
-    void setPixelSizeInMeters(double pixelSizeInMeters);
+    void setPixelSize(double pixelSize, const QString& unit, const bool unitIsSI);
 
     void panAbsolute(double offsetX, double offsetY);
     void panRelative(double offsetX, double offsetY); // TODO
@@ -207,7 +207,9 @@ private:
     bool maskVisible = true;
     bool maskDirty = false;
 
-    double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
+    double pixelSize = std::numeric_limits<double>::quiet_NaN();
+    QString pixelSizeUnit;
+    bool pixelSizeUnitIsSI = false;
 
     LeftMouseMode leftMouseMode = LeftMouseMode::Pan;
     RightMouseMode rightMouseMode = RightMouseMode::ResetView;
