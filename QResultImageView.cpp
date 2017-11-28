@@ -1101,7 +1101,7 @@ void QResultImageView::updateCursor()
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
     case LeftMouseMode::Annotate: setCursor(floodFillMode ? bucketCursor : getAnnotationCursor()); break;
-    case LeftMouseMode::EraseAnnotations: setCursor(getAnnotationCursor()); break;
+    case LeftMouseMode::EraseAnnotations: setCursor(floodFillMode ? bucketCursor : getAnnotationCursor()); break;
     default: Q_ASSERT(false);
     }
 }
