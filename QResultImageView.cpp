@@ -35,6 +35,7 @@ QResultImageView::QResultImageView(QWidget *parent)
     : QWidget(parent)
 {
     setLeftMouseMode(LeftMouseMode::Pan);
+    setRightMouseMode(RightMouseMode::ResetView);
 
     setMouseTracking(true);
 }
@@ -136,9 +137,25 @@ void QResultImageView::paintEvent(QPaintEvent* /*event*/)
     }
 }
 
+bool isLeftButton(const QMouseEvent* event)
+{
+    return event->buttons() & Qt::LeftButton;
+}
+
+bool isRightButton(const QMouseEvent* event)
+{
+    return event->buttons() & Qt::RightButton;
+}
+
+bool isLeftOrRightButton(const QMouseEvent* event)
+{
+    const auto buttons = event->buttons();
+    return (buttons & Qt::LeftButton) || (buttons & Qt::RightButton);
+}
+
 void QResultImageView::mousePressEvent(QMouseEvent *event)
 {
-    if (event->buttons() & Qt::LeftButton) {
+    if (isLeftOrRightButton(event)) {
         checkMouseMark(event);
     }
 }
@@ -179,8 +196,19 @@ void QResultImageView::leaveEvent(QEvent*)
 
 void QResultImageView::checkMousePan(const QMouseEvent *event)
 {
-    if (event->buttons() & Qt::LeftButton) {
-        if (leftMouseMode == LeftMouseMode::Pan) {
+    if (isLeftOrRightButton(event)) {
+
+        const auto isPan = [&]() {
+            if (isLeftButton(event) && leftMouseMode == LeftMouseMode::Pan) {
+                return true;
+            }
+            if (isRightButton(event) && rightMouseMode == RightMouseMode::Pan) {
+                return true;
+            }
+            return false;
+        };
+
+        if (isPan()) {
             if (hasPreviousMouseCoordinates) {
                 const double imageScaler = getImageScaler();
                 offsetX += (event->x() - previousMouseX) * imageScaler;
@@ -204,13 +232,16 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
 
 void QResultImageView::checkMouseMark(const QMouseEvent* event)
 {
-    Q_ASSERT(event->buttons() & Qt::LeftButton);
+    Q_ASSERT(isLeftOrRightButton(event));
 
     if (sourceImage.size().isEmpty()) {
         return;
     }
 
-    if (leftMouseMode == LeftMouseMode::Annotate || leftMouseMode == LeftMouseMode::EraseAnnotations) {
+    const bool isAnnotating = isLeftButton(event) && leftMouseMode == LeftMouseMode::Annotate;
+    const bool isErasing = !isAnnotating && ((isLeftButton(event) && leftMouseMode == LeftMouseMode::EraseAnnotations) || (isRightButton(event) && rightMouseMode == RightMouseMode::EraseAnnotations));
+
+    if (isAnnotating || isErasing) {
         if (!maskVisible) {
             const int answer = QMessageBox::question(this, tr("Can't do that - at least as such"), tr("The annotations can be edited only when visible.\n\nMake the annotations visible?"));
             if (answer == QMessageBox::Yes) {
@@ -298,7 +329,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
         update = true;
     };
 
-    if (leftMouseMode == LeftMouseMode::Annotate) {
+    if (isAnnotating) {
         if (maskPixmap.isNull()) {
             QApplication::setOverrideCursor(Qt::WaitCursor);
             QApplication::processEvents(); // actually update the cursor
@@ -312,10 +343,13 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
         draw(annotationColor);
     }
-    else if (leftMouseMode == LeftMouseMode::EraseAnnotations) {
+    else if (isErasing) {
         if (!maskPixmap.isNull()) {
             draw(Qt::transparent);
         }
+    }
+    else if (isRightButton(event) && rightMouseMode == RightMouseMode::ResetView) {
+        resetZoomAndPan();
     }
 
     if (update) {
@@ -354,7 +388,7 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
-    if ((event->modifiers() & Qt::ControlModifier) && (leftMouseMode == Annotate || leftMouseMode == EraseAnnotations)) {
+    if ((event->modifiers() & Qt::ControlModifier) && (leftMouseMode == LeftMouseMode::Annotate || leftMouseMode == LeftMouseMode::EraseAnnotations)) {
         // Ask the main application to change the marking radius
         const int magnitude = std::max(abs(event->delta()) * markingRadius / 1000, 1);
         const int sign = event->delta() > 0 ? 1 : (event->delta() < 0 ? -1 : 0);
@@ -1034,6 +1068,11 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 {
     this->leftMouseMode = leftMouseMode;
     updateCursor();
+}
+
+void QResultImageView::setRightMouseMode(RightMouseMode rightMouseMode)
+{
+    this->rightMouseMode = rightMouseMode;
 }
 
 void QResultImageView::updateCursor()

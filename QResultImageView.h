@@ -67,13 +67,20 @@ public:
     // The magnification required to fit the full source in the destination window when zoomLevel = 0.
     double getDefaultMagnification() const;
 
-    enum LeftMouseMode {
+    enum class LeftMouseMode {
         Pan,
         Annotate,
         EraseAnnotations
     };
 
+    enum class RightMouseMode {
+        Pan,
+        EraseAnnotations,
+        ResetView
+    };
+
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
+    void setRightMouseMode(RightMouseMode rightMouseMode);
     void setAnnotationColor(QColor color);
     void setMarkingRadius(int newMarkingRadius);
     void setFloodFillMode(bool floodFill);
@@ -203,6 +210,7 @@ private:
     double pixelSize_m = std::numeric_limits<double>::quiet_NaN();
 
     LeftMouseMode leftMouseMode = LeftMouseMode::Pan;
+    RightMouseMode rightMouseMode = RightMouseMode::ResetView;
     QColor annotationColor = Qt::transparent;
 
     int markingRadius = 10;
