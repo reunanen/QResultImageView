@@ -4,7 +4,6 @@
 #include <QApplication>
 #include <QMessageBox>
 #include <qtimer.h>
-#include "qt-image-flood-fill/qfloodfill.h"
 
 QResultImageView::DelayedRedrawToken::DelayedRedrawToken()
 {}
@@ -34,7 +33,7 @@ void QResultImageView::DelayedRedrawToken::registerToBeRedrawnWhenTokenIsDestruc
 QResultImageView::QResultImageView(QWidget *parent)
     : QWidget(parent)
 {
-    setLeftMouseMode(LeftMouseMode::Pan);
+    setLeftMouseMode(LeftMouseMode::Annotate);
     setRightMouseMode(RightMouseMode::ResetView);
 
     setMouseTracking(true);
@@ -45,23 +44,6 @@ void QResultImageView::setImage(const QImage& image, DelayedRedrawToken* delayed
     sourceImage = image;
     sourcePixmap = QPixmap();
     updateSourcePyramid();
-
-    registerOrRedraw(delayedRedrawToken, getEventualTransformationMode());
-}
-
-void QResultImageView::setMask(const QImage& mask, DelayedRedrawToken* delayedRedrawToken)
-{
-    if (!mask.isNull()) {
-        maskPixmap.convertFromImage(mask);
-        updateMaskPyramid(false);
-    }
-    else {
-        maskPixmap = QPixmap();
-        maskPixmapPyramid.clear();
-
-        croppedMask = QPixmap();
-        scaledAndCroppedMask = QPixmap();
-    }
 
     registerOrRedraw(delayedRedrawToken, getEventualTransformationMode());
 }
@@ -85,6 +67,20 @@ void QResultImageView::setImagePyramid(const std::vector<QImage>& imagePyramid, 
     }
 
     registerOrRedraw(delayedRedrawToken, getEventualTransformationMode());
+}
+
+void QResultImageView::setAnnotations(const Results& annotations, DelayedRedrawToken* delayedRedrawToken)
+{
+    this->annotations = annotations;
+    setResultPolygons();
+
+    if (delayedRedrawToken == nullptr) {
+        drawResultsToViewport();
+        update();
+    }
+    else {
+        delayedRedrawToken->registerToBeRedrawnWhenTokenIsDestructed(this, getEventualTransformationMode()); // in fact update would be enough even here
+    }
 }
 
 void QResultImageView::setResults(const std::vector<Result>& results, DelayedRedrawToken* delayedRedrawToken)
@@ -135,6 +131,13 @@ void QResultImageView::paintEvent(QPaintEvent* /*event*/)
     if (!std::isnan(pixelSize)) {
         drawYardstick(painter);
     }
+
+    if (isDrawingRectangle) {
+        QPen pen(rectangleSizeExceedsMinDimension() ? Qt::blue : Qt::gray);
+        pen.setWidth(2);
+        painter.setPen(pen);
+        painter.drawRect(getAnnotatedScreenRect());
+    }
 }
 
 bool isLeftButton(const QMouseEvent* event)
@@ -156,7 +159,36 @@ bool isLeftOrRightButton(const QMouseEvent* event)
 void QResultImageView::mousePressEvent(QMouseEvent *event)
 {
     if (isLeftOrRightButton(event)) {
-        checkMouseMark(event);
+
+        const bool isAbort = isDrawingRectangle && isRightButton(event);
+        const bool isAnnotating = isLeftButton(event) && leftMouseMode == LeftMouseMode::Annotate;
+
+        if (isAbort) {
+            isDrawingRectangle = false;
+            update();
+        }
+        else if (isAnnotating) {
+            if (!annotationsVisible) {
+                const int answer = QMessageBox::question(this, tr("Can't do that - at least as such"), tr("The annotations can be edited only when visible.\n\nMake the annotations visible?"));
+                if (answer == QMessageBox::Yes) {
+                    setAnnotationsVisible(true);
+                    emit makeAnnotationsVisible(true);
+                }
+                return;
+            }
+
+            isDrawingRectangle = true;
+            rectangleStartX = event->x();
+            rectangleStartY = event->y();
+            rectangleCurrentX = rectangleStartX;
+            rectangleCurrentY = rectangleStartY;
+        }
+        else if (isRightButton(event) && rightMouseMode == RightMouseMode::ResetView) {
+            resetZoomAndPan();
+        }
+
+        previousMouseX = event->x();
+        previousMouseY = event->y();
     }
 }
 
@@ -181,11 +213,25 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     emit mouseAtCoordinates(sourceCoordinate, pixelIndex);
 }
 
-void QResultImageView::mouseReleaseEvent(QMouseEvent* /*event*/)
+bool QResultImageView::rectangleSizeExceedsMinDimension() const
 {
-    if (maskDirty) {
-        emit maskUpdated();
-        maskDirty = false;
+    const int minDimension = 50;
+    return abs(rectangleCurrentX - rectangleStartX) > minDimension
+        || abs(rectangleCurrentY - rectangleStartY) > minDimension;
+}
+
+void QResultImageView::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (isDrawingRectangle) {
+        isDrawingRectangle = false;
+        rectangleCurrentX = event->x();
+        rectangleCurrentY = event->y();
+
+        update();
+
+        if (rectangleSizeExceedsMinDimension()) {
+            emit annotationUpdated();
+        }
     }
 }
 
@@ -219,15 +265,15 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
 
                 emit panned();
             }
+
+            hasPreviousMouseCoordinates = true;
+            previousMouseX = event->x();
+            previousMouseY = event->y();
         }
         else {
             checkMouseMark(event);
         }
     }
-
-    hasPreviousMouseCoordinates = true;
-    previousMouseX = event->x();
-    previousMouseY = event->y();
 }
 
 void QResultImageView::checkMouseMark(const QMouseEvent* event)
@@ -239,124 +285,23 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     }
 
     const bool isAnnotating = isLeftButton(event) && leftMouseMode == LeftMouseMode::Annotate;
-    const bool isErasing = !isAnnotating && ((isLeftButton(event) && leftMouseMode == LeftMouseMode::EraseAnnotations) || (isRightButton(event) && rightMouseMode == RightMouseMode::EraseAnnotations));
 
-    if (isAnnotating || isErasing) {
-        if (!maskVisible) {
+    if (isAnnotating) {
+        if (!annotationsVisible) {
             const int answer = QMessageBox::question(this, tr("Can't do that - at least as such"), tr("The annotations can be edited only when visible.\n\nMake the annotations visible?"));
             if (answer == QMessageBox::Yes) {
-                setMaskVisible(true);
-                emit annotationsVisible(true);
+                setAnnotationsVisible(true);
+                emit makeAnnotationsVisible(true);
             }
             return;
         }
-    }
 
-    bool update = false;
-    Qt::TransformationMode transformationMode = getInitialTransformationMode();
-
-    const auto draw = [&](const QColor& color) {
-        // draw ellipse
-
-        const double effectiveMarkingRadius = markingRadius * getImageScaler();
-
-        const QPointF screenPoint(event->x(), event->y());
-        const QPointF sourcePoint = screenToSourceActual(screenPoint);
-
-        const auto draw = [&](QPixmap& pixmap, double scaleFactor) {
-
-            if (floodFillMode) {
-                QApplication::setOverrideCursor(Qt::WaitCursor);
-
-                const int x = static_cast<int>(sourcePoint.x() * scaleFactor);
-                const int y = static_cast<int>(sourcePoint.y() * scaleFactor);
-                QPoint center(x, y);
-
-                FloodFill(pixmap, center, color);
-
-                QApplication::restoreOverrideCursor();
-
-                transformationMode = getEventualTransformationMode();
-            }
-            else {
-                QPainter painter(&pixmap);
-                painter.setPen(color);
-                painter.setBrush(color);
-                painter.setCompositionMode(QPainter::CompositionMode_Source);
-
-                const QPoint endPoint(static_cast<int>(sourcePoint.x() * scaleFactor), static_cast<int>(sourcePoint.y() * scaleFactor));
-
-                const auto getStartPoint = [&]() {
-                    if (hasPreviousMouseCoordinates) {
-                        const QPointF previousSourcePoint(screenToSourceActual(QPoint(previousMouseX, previousMouseY)));
-                        const QPoint startPoint(static_cast<int>(previousSourcePoint.x() * scaleFactor), static_cast<int>(previousSourcePoint.y() * scaleFactor));
-                        return startPoint;
-                    }
-                    else {
-                        return endPoint;
-                    }
-                };
-
-                const QPoint startPoint = getStartPoint();
-
-                const int manhattanLength = (startPoint - endPoint).manhattanLength();
-
-                QPoint previousCenter;
-
-                for (int i = 0; i <= manhattanLength; ++i) {
-                    const QPoint center = startPoint + (endPoint - startPoint) * i / std::max(0, manhattanLength);
-
-                    if (i == 0 || center != previousCenter) {
-                        if (effectiveMarkingRadius * scaleFactor <= 0.5) {
-                            painter.drawPoint(center);
-                        }
-                        else {
-                            const int r = static_cast<int>(std::round(effectiveMarkingRadius * scaleFactor));
-                            painter.drawEllipse(center, r, r);
-                        }
-                        previousCenter = center;
-                    }
-                }
-            }
-        };
-
-        draw(maskPixmap, 1.0);
-
-        for (auto& maskPixmapPyramidItem : maskPixmapPyramid) {
-            draw(maskPixmapPyramidItem.second, maskPixmapPyramidItem.first);
+        if (isDrawingRectangle) {
+            rectangleCurrentX = event->x();
+            rectangleCurrentY = event->y();
+            update();
+            emit annotationUpdating();
         }
-
-        update = true;
-    };
-
-    if (isAnnotating) {
-        if (maskPixmap.isNull()) {
-            QApplication::setOverrideCursor(Qt::WaitCursor);
-            QApplication::processEvents(); // actually update the cursor
-
-            maskPixmap = QPixmap(sourceImage.width(), sourceImage.height());
-            maskPixmap.fill(Qt::transparent);
-            updateMaskPyramid(true);
-
-            QApplication::restoreOverrideCursor();
-        }
-
-        draw(annotationColor);
-    }
-    else if (isErasing) {
-        if (!maskPixmap.isNull()) {
-            draw(Qt::transparent);
-        }
-    }
-    else if (isRightButton(event) && rightMouseMode == RightMouseMode::ResetView) {
-        resetZoomAndPan();
-    }
-
-    if (update) {
-        redrawEverything(transformationMode);
-        considerActivatingSmoothTransformationTimer();
-        maskDirty = true;
-        emit maskUpdating();
     }
 }
 
@@ -388,24 +333,16 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
-    if ((event->modifiers() & Qt::ControlModifier) && (leftMouseMode == LeftMouseMode::Annotate || leftMouseMode == LeftMouseMode::EraseAnnotations)) {
-        // Ask the main application to change the marking radius
-        const int magnitude = std::max(abs(event->delta()) * markingRadius / 1000, 1);
-        const int sign = event->delta() > 0 ? 1 : (event->delta() < 0 ? -1 : 0);
-        emit newMarkingRadius(markingRadius + sign * magnitude);
-    }
-    else {
-        const int zoomMultiplier
-                = (event->modifiers() & Qt::ShiftModifier)
-                ? 20
-                : 4;
+    const int zoomMultiplier
+            = (event->modifiers() & Qt::ShiftModifier)
+            ? 20
+            : 4;
 
-        const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * event->delta(), 0), getMaxZoomLevel());
+    const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * event->delta(), 0), getMaxZoomLevel());
 
-        const QPointF point = event->posF();
+    const QPointF point = event->posF();
 
-        zoom(newZoomLevel, &point);
-    }
+    zoom(newZoomLevel, &point);
 }
 
 void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
@@ -516,32 +453,12 @@ std::pair<double, const QPixmap*> QResultImageView::getSourcePixmap(double scale
     }
 }
 
-std::pair<double, const QPixmap*> QResultImageView::getMaskPixmap(double scaleFactor)
-{
-    if (scaleFactor > maskPixmapPyramid.rbegin()->first) {
-        return std::make_pair(1.0, &maskPixmap);
-    }
-    else {
-        auto i = maskPixmapPyramid.begin();
-        double foundScaleFactor = i->first;
-        const QPixmap* correspondingPixmap = &i->second;
-        while (scaleFactor > i->first) {
-            Q_ASSERT(i != maskPixmapPyramid.end());
-            ++i;
-            foundScaleFactor = i->first;
-            correspondingPixmap = &i->second;
-        }
-        Q_ASSERT(i != maskPixmapPyramid.end());
-        return std::make_pair(foundScaleFactor, correspondingPixmap);
-    }
-}
-
 void QResultImageView::drawResultsToViewport()
 {
-    bool showMask = maskVisible && !scaledAndCroppedMask.isNull();
+    bool showAnnotations = annotationsVisible && !annotations.empty();
     bool showResults = resultsVisible && !results.empty();
 
-    if (!showMask && !showResults) {
+    if (!showAnnotations && !showResults) {
         scaledAndCroppedSourceWithResults = scaledAndCroppedSource;
     }
     else {
@@ -549,11 +466,16 @@ void QResultImageView::drawResultsToViewport()
 
         QPainter resultPainter(&scaledAndCroppedSourceWithResults);
 
-        if (showMask) {
-            resultPainter.drawPixmap(0, 0, scaledAndCroppedMask);
-        }
+        for (int i = 0; i < 2; ++i){
 
-        if (showResults) {
+            if (i == 0 && !showAnnotations) {
+                continue;
+            }
+
+            if (i == 1 && !showResults) {
+                continue;
+            }
+
             const double scaleFactor = getScaleFactor();
 
             const double zoomCenterX = sourceImage.width() / 2 - offsetX;
@@ -565,7 +487,7 @@ void QResultImageView::drawResultsToViewport()
             const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
             const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
 
-            for (const Result& result : results) {
+            for (const Result& result : (i == 0 ? annotations : results)) {
                 resultPainter.setPen(result.pen);
                 if (!result.contour.empty()) {
                     std::vector<QPoint> scaledContour(result.contour.size());
@@ -660,12 +582,6 @@ void QResultImageView::updateViewport(Qt::TransformationMode transformationMode)
     const int scaledWidth = static_cast<int>(std::round(scaleFactor / scaledSource.first * croppedSource.width()));
     const int scaledHeight = static_cast<int>(std::round(scaleFactor / scaledSource.first * croppedSource.height()));
     scaledAndCroppedSource = croppedSource.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, transformationMode);
-
-    if (!maskPixmap.isNull()) {
-        const std::pair<double, const QPixmap*> scaledMask = getMaskPixmap(scaleFactor);
-        croppedMask = scaledMask.second->copy(croppedSourceRect);
-        scaledAndCroppedMask = croppedMask.scaled(QSize(scaledWidth, scaledHeight), Qt::IgnoreAspectRatio, Qt::FastTransformation);
-    }
 
     destinationRect = roundedRect(dstTopLeft, dstBottomRight);
 }
@@ -838,15 +754,13 @@ void QResultImageView::setResultsVisible(bool visible)
     }
 }
 
-void QResultImageView::setMaskVisible(bool visible)
+void QResultImageView::setAnnotationsVisible(bool visible)
 {
-    if (maskVisible != visible) {
-        maskVisible = visible;
+    if (annotationsVisible != visible) {
+        annotationsVisible = visible;
 
-        if (!maskPixmap.isNull()) {
-            drawResultsToViewport();
-            update();
-        }
+        drawResultsToViewport();
+        update();
     }
 }
 
@@ -1003,10 +917,10 @@ int QResultImageView::getZoomLevel() const
 void QResultImageView::setResultPolygons()
 {
     // set result polygons to be used for the mouse-on-result test
-    resultPolygons.resize(results.size());
-    for (size_t i = 0, end = results.size(); i < end; ++i) {
+    resultPolygons.resize(annotations.size() + results.size());
+    for (size_t i = 0, end = annotations.size() + results.size(); i < end; ++i) {
         QPolygonF& resultPolygon = resultPolygons[i];
-        const Result& result = results[i];
+        const Result& result = i < annotations.size() ? annotations[i] : results[i - annotations.size()];
         resultPolygon.resize(static_cast<int>(result.contour.size()));
         for (size_t j = 0, end = result.contour.size(); j < end; ++j) {
             resultPolygon[static_cast<int>(j)] = result.contour[j];
@@ -1041,41 +955,6 @@ void QResultImageView::updateSourcePyramid()
     }
 }
 
-void QResultImageView::updateMaskPyramid(bool isEmpty)
-{
-    //maskImagePyramid.clear();
-    maskPixmapPyramid.clear();
-
-    const Qt::TransformationMode mode = transformationMode == AlwaysFastTransformation
-            ? Qt::FastTransformation
-            : Qt::SmoothTransformation;
-
-    double scaleFactor = 1.0;
-    double width = sourceImage.width();
-    double height = sourceImage.height();
-
-    const QPixmap* previous = &maskPixmap;
-    const double step = 2.0;
-
-    while (width > 50 && height > 50) {
-        scaleFactor /= step;
-        width /= step;
-        height /= step;
-
-        const QSize scaledSize(std::round(width), std::round(height));
-
-        if (isEmpty) {
-            maskPixmapPyramid[scaleFactor] = QPixmap(scaledSize);
-            maskPixmapPyramid[scaleFactor].fill(Qt::transparent);
-        }
-        else {
-            maskPixmapPyramid[scaleFactor] = previous->scaled(scaledSize, Qt::IgnoreAspectRatio, mode);
-        }
-
-        previous = &maskPixmapPyramid.rbegin()->second;
-    }
-}
-
 void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 {
     this->leftMouseMode = leftMouseMode;
@@ -1089,59 +968,69 @@ void QResultImageView::setRightMouseMode(RightMouseMode rightMouseMode)
 
 void QResultImageView::updateCursor()
 {
-    // TODO: make cursor depend on marking radius (or show what would be marked directly on the pixmap)
-
-    const auto getAnnotationCursor = [this]() {
-        QPixmap pixmap(2 * markingRadius + 1, 2 * markingRadius + 1);
-        pixmap.fill(Qt::transparent);
-
-        QPainter painter(&pixmap);
-        painter.setPen(Qt::black);
-        if (leftMouseMode == LeftMouseMode::Annotate) {
-            painter.setBrush(annotationColor);
-        }
-        else {
-            Q_ASSERT(leftMouseMode == LeftMouseMode::EraseAnnotations);
-            painter.setBrush(Qt::transparent);
-        }
-        painter.drawEllipse(0, 0, pixmap.width() - 1, pixmap.height() - 1);
-
-        QCursor cursor(pixmap, markingRadius, markingRadius);
-        return cursor;
-    };
-
     switch(leftMouseMode) {
     case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-    case LeftMouseMode::Annotate: setCursor(floodFillMode ? bucketCursor : getAnnotationCursor()); break;
-    case LeftMouseMode::EraseAnnotations: setCursor(floodFillMode ? bucketCursor : getAnnotationCursor()); break;
+    case LeftMouseMode::Annotate: setCursor(Qt::ArrowCursor); break;
     default: Q_ASSERT(false);
     }
 }
 
-void QResultImageView::setAnnotationColor(QColor color)
+const QRect QResultImageView::getAnnotatedScreenRect()
 {
-    this->annotationColor = color;
-    updateCursor();
+    QPointF screenTopLeft = sourceToScreenIdeal(QPointF(0, 0));
+    QPointF screenBottomRight = sourceToScreenIdeal(QPointF(sourceImage.width(), sourceImage.height()));
+
+    const auto limitX = [&](int x) {
+        return std::max(static_cast<int>(std::round(screenTopLeft.x())), std::min(static_cast<int>(std::round(screenBottomRight.x())) - 1, x));
+    };
+    const auto limitY = [&](int y) {
+        return std::max(static_cast<int>(std::round(screenTopLeft.y())), std::min(static_cast<int>(std::round(screenBottomRight.y())) - 1, y));
+    };
+
+    int limitedStartX = limitX(rectangleStartX);
+    int limitedStartY = limitY(rectangleStartY);
+    int limitedCurrentX = limitX(rectangleCurrentX);
+    int limitedCurrentY = limitY(rectangleCurrentY);
+
+    int x1 = limitedStartX;
+    int y1 = limitedStartY;
+    int x2 = limitedCurrentX;
+    int y2 = limitedCurrentY;
+
+    int w = std::abs(x2 - x1);
+    int h = std::abs(y2 - y1);
+
+    const double ratio = 16.0 / 9.0;
+
+    if (w > ratio * h) {
+        h = static_cast<int>(std::round(w / ratio));
+    }
+    else {
+        w = static_cast<int>(std::round(h * ratio));
+    }
+
+    x2 = limitX((x2 > x1) ? x1 + w : x1 - w);
+    y2 = limitY((y2 > y1) ? y1 + h : y1 - h);
+
+    if (x1 > x2) {
+        std::swap(x1, x2);
+    }
+    if (y1 > y2) {
+        std::swap(y1, y2);
+    }
+
+    x1 = limitX(x2 - w);
+    y1 = limitY(y2 - h);
+
+    return QRect(x1, y1, w, h);
 }
 
-void QResultImageView::setMarkingRadius(int newMarkingRadius)
+const QRectF QResultImageView::getAnnotatedSourceRect()
 {
-    markingRadius = newMarkingRadius;
-    updateCursor();
-}
+    const QRect screenRect = getAnnotatedScreenRect();
 
-void QResultImageView::setFloodFillMode(bool floodFill)
-{
-    floodFillMode = floodFill;
-    updateCursor();
-}
+    const QPointF sourceTopLeft = screenToSourceIdeal(screenRect.topLeft());
+    const QPointF sourceBottomRight = screenToSourceIdeal(screenRect.bottomRight());
 
-const QPixmap& QResultImageView::getMask()
-{
-    return maskPixmap;
-}
-
-void QResultImageView::setBucketCursor(const QCursor& cursor)
-{
-    bucketCursor = cursor;
+    return QRectF(sourceTopLeft, sourceBottomRight);
 }

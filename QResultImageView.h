@@ -27,7 +27,6 @@ public:
     };
 
     void setImage(const QImage& image, DelayedRedrawToken* delayedRedrawToken = nullptr);
-    void setMask(const QImage& mask, DelayedRedrawToken* delayedRedrawToken = nullptr);
     void setImagePyramid(const std::vector<QImage>& imagePyramid, DelayedRedrawToken* delayedRedrawToken = nullptr);
 
     struct Result {
@@ -37,6 +36,7 @@ public:
 
     typedef std::vector<Result> Results;
 
+    void setAnnotations(const Results& annotations, DelayedRedrawToken* delayedRedrawToken = nullptr);
     void setResults(const Results& results, DelayedRedrawToken* delayedRedrawToken = nullptr);
 
     enum TransformationMode {
@@ -49,8 +49,8 @@ public:
 
     void setTransformationMode(TransformationMode newTransformationMode);
 
+    void setAnnotationsVisible(bool visible);
     void setResultsVisible(bool visible);
-    void setMaskVisible(bool visible);
 
     void resetZoomAndPan();
 
@@ -70,24 +70,17 @@ public:
     enum class LeftMouseMode {
         Pan,
         Annotate,
-        EraseAnnotations
     };
 
     enum class RightMouseMode {
         Pan,
-        EraseAnnotations,
         ResetView
     };
 
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
     void setRightMouseMode(RightMouseMode rightMouseMode);
-    void setAnnotationColor(QColor color);
-    void setMarkingRadius(int newMarkingRadius);
-    void setFloodFillMode(bool floodFill);
 
-    const QPixmap& getMask();
-
-    void setBucketCursor(const QCursor& cursor);
+    const QRectF getAnnotatedSourceRect();
 
 signals:
     void panned();
@@ -96,10 +89,9 @@ signals:
     void mouseNotOnResult();
     void mouseAtCoordinates(QPointF sourcePoint, int pixelIndex); // pixelIndex is -1 if it's not valid
     void mouseLeft();
-    void maskUpdating();
-    void maskUpdated();
-    void newMarkingRadius(int newMarkingRadius);
-    void annotationsVisible(bool visible);
+    void annotationUpdating();
+    void annotationUpdated();
+    void makeAnnotationsVisible(bool visible);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -125,6 +117,8 @@ private:
     void updateViewport(Qt::TransformationMode transformationMode);
     void drawResultsToViewport();
 
+    const QRect getAnnotatedScreenRect();
+
     double getScaleFactor() const;
 
     double getSourceImageVisibleWidth() const;
@@ -142,6 +136,8 @@ private:
     void limitOffset();
 
     void drawYardstick(QPainter& painter);
+
+    bool rectangleSizeExceedsMinDimension() const;
 
     Qt::TransformationMode getInitialTransformationMode() const;
     Qt::TransformationMode getEventualTransformationMode() const;
@@ -161,27 +157,19 @@ private:
     void setResultPolygons();
 
     void updateSourcePyramid();
-    void updateMaskPyramid(bool isEmpty);
 
     void updateCursor();
 
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
-    std::pair<double, const QPixmap*> getMaskPixmap(double scaleFactor);
 
     QImage sourceImage;
     mutable QPixmap sourcePixmap;
     std::map<double, QImage> sourceImagePyramid;
     mutable std::map<double, QPixmap> sourcePixmapPyramid;
 
-    mutable QPixmap maskPixmap;
-    mutable std::map<double, QPixmap> maskPixmapPyramid;
-
     QPixmap croppedSource;
     QPixmap scaledAndCroppedSource;
     QPixmap scaledAndCroppedSourceWithResults;
-
-    QPixmap croppedMask;
-    QPixmap scaledAndCroppedMask;
 
     QRect croppedSourceRect;
     QRect destinationRect;
@@ -196,16 +184,22 @@ private:
     int previousMouseX = 0;
     int previousMouseY = 0;
 
+    bool isDrawingRectangle = false;
+    int rectangleStartX = 0;
+    int rectangleStartY = 0;
+    int rectangleCurrentX = 0;
+    int rectangleCurrentY = 0;
+
     size_t mouseOnResultIndex = -1;
 
+    Results annotations;
     Results results;
 
     TransformationMode transformationMode = DelayedSmoothTransformationWhenZoomedOut;
     int smoothTransformationPendingCounter = 0;
 
+    bool annotationsVisible = true;
     bool resultsVisible = true;
-    bool maskVisible = true;
-    bool maskDirty = false;
 
     double pixelSize = std::numeric_limits<double>::quiet_NaN();
     QString pixelSizeUnit;
@@ -213,12 +207,6 @@ private:
 
     LeftMouseMode leftMouseMode = LeftMouseMode::Pan;
     RightMouseMode rightMouseMode = RightMouseMode::ResetView;
-    QColor annotationColor = Qt::transparent;
-
-    int markingRadius = 10;
-    bool floodFillMode = false;
-
-    QCursor bucketCursor = Qt::ArrowCursor;
 };
 
 #endif // QRESULTIMAGEVIEW_H
