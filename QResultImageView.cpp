@@ -746,4 +746,8 @@ void QResultImageView::updateSourcePyramid()
 
         previous = &sourceImagePyramid.rbegin()->second;
     }
+
+    if (sourceImagePyramid.empty()) {
+        sourceImagePyramid[1.0] = sourceImage;
+    }
 }
