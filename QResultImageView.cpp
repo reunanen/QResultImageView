@@ -223,8 +223,8 @@ void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
 
         QPointF sourcePointAfter = screenToSourceIdeal(point);
 
-        Q_ASSERT(fabs(sourcePointBefore.x() - sourcePointAfter.x()) < 1e-6);
-        Q_ASSERT(fabs(sourcePointBefore.y() - sourcePointAfter.y()) < 1e-6);
+        Q_ASSERT(fabs(sourcePointBefore.x() - sourcePointAfter.x()) < 1e-6 || (isnan(sourcePointBefore.x()) && isnan(sourcePointAfter.x())));
+        Q_ASSERT(fabs(sourcePointBefore.y() - sourcePointAfter.y()) < 1e-6 || (isnan(sourcePointBefore.y()) && isnan(sourcePointAfter.y())));
 
         limitOffset();
 
