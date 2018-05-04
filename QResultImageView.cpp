@@ -1227,10 +1227,6 @@ void QResultImageView::updateMaskPyramid(bool isEmpty)
     //maskImagePyramid.clear();
     maskPixmapPyramid.clear();
 
-    const Qt::TransformationMode mode = transformationMode == AlwaysFastTransformation
-            ? Qt::FastTransformation
-            : Qt::SmoothTransformation;
-
     double scaleFactor = 1.0;
     double width = sourceImage.width();
     double height = sourceImage.height();
