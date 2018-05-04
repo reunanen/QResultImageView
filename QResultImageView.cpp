@@ -1024,7 +1024,7 @@ void QResultImageView::setAnnotationsVisible(bool visible)
     if (annotationsVisible != visible) {
         annotationsVisible = visible;
 
-        if (!maskPixmap.isNull()) {
+        if (!maskPixmap.isNull() || !thingAnnotations.empty()) {
             drawResultsToViewport();
             update();
         }
