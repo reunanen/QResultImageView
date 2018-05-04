@@ -37,6 +37,7 @@ public:
 
     typedef std::vector<Result> Results;
 
+    void setThingAnnotations(const Results& thingAnnotations, DelayedRedrawToken* delayedRedrawToken = nullptr);
     void setResults(const Results& results, DelayedRedrawToken* delayedRedrawToken = nullptr);
 
     enum TransformationMode {
@@ -49,8 +50,8 @@ public:
 
     void setTransformationMode(TransformationMode newTransformationMode);
 
+    void setAnnotationsVisible(bool visible);
     void setResultsVisible(bool visible);
-    void setMaskVisible(bool visible);
 
     void resetZoomAndPan();
 
@@ -67,6 +68,11 @@ public:
     // The magnification required to fit the full source in the destination window when zoomLevel = 0.
     double getDefaultMagnification() const;
 
+    enum AnnotationMode {
+        Stuff,
+        Things
+    };
+
     enum class LeftMouseMode {
         Pan,
         Annotate,
@@ -79,6 +85,7 @@ public:
         ResetView
     };
 
+    void setAnnotationMode(AnnotationMode annotationMode);
     void setLeftMouseMode(LeftMouseMode leftMouseMode);
     void setRightMouseMode(RightMouseMode rightMouseMode);
     void setAnnotationColor(QColor color);
@@ -89,6 +96,8 @@ public:
 
     void setBucketCursor(const QCursor& cursor);
 
+    const std::vector<Result> getThingAnnotations();
+
 signals:
     void panned();
     void zoomed();
@@ -96,10 +105,10 @@ signals:
     void mouseNotOnResult();
     void mouseAtCoordinates(QPointF sourcePoint, int pixelIndex); // pixelIndex is -1 if it's not valid
     void mouseLeft();
-    void maskUpdating();
-    void maskUpdated();
+    void annotationUpdating();
+    void annotationUpdated();
     void newMarkingRadius(int newMarkingRadius);
-    void annotationsVisible(bool visible);
+    void makeAnnotationsVisible(bool visible);
 
 protected:
     void paintEvent(QPaintEvent* event) override;
@@ -124,6 +133,9 @@ private:
     void registerOrRedraw(DelayedRedrawToken* delayedRedrawToken, const Qt::TransformationMode& transformationMode);
     void updateViewport(Qt::TransformationMode transformationMode);
     void drawResultsToViewport();
+
+    const QRect getAnnotatedScreenRect();
+    const QRectF getAnnotatedSourceRect();
 
     double getScaleFactor() const;
 
@@ -165,6 +177,8 @@ private:
 
     void updateCursor();
 
+    size_t getThingAnnotationIndex(const QPointF& screenPoint) const;
+
     std::pair<double, const QPixmap*> getSourcePixmap(double scaleFactor) const;
     std::pair<double, const QPixmap*> getMaskPixmap(double scaleFactor);
 
@@ -196,15 +210,22 @@ private:
     int previousMouseX = 0;
     int previousMouseY = 0;
 
+    bool isDrawingRectangle = false;
+    int rectangleStartX = 0;
+    int rectangleStartY = 0;
+    int rectangleCurrentX = 0;
+    int rectangleCurrentY = 0;
+
     size_t mouseOnResultIndex = -1;
 
+    Results thingAnnotations;
     Results results;
 
     TransformationMode transformationMode = DelayedSmoothTransformationWhenZoomedOut;
     int smoothTransformationPendingCounter = 0;
 
+    bool annotationsVisible = true;
     bool resultsVisible = true;
-    bool maskVisible = true;
     bool maskDirty = false;
 
     double pixelSize = std::numeric_limits<double>::quiet_NaN();
@@ -219,6 +240,8 @@ private:
     bool floodFillMode = false;
 
     QCursor bucketCursor = Qt::ArrowCursor;
+
+    AnnotationMode annotationMode = AnnotationMode::Stuff;
 };
 
 #endif // QRESULTIMAGEVIEW_H
