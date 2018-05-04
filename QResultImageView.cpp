@@ -1069,7 +1069,7 @@ void QResultImageView::updateMaskPyramid(bool isEmpty)
             maskPixmapPyramid[scaleFactor].fill(Qt::transparent);
         }
         else {
-            maskPixmapPyramid[scaleFactor] = previous->scaled(scaledSize, Qt::IgnoreAspectRatio, mode);
+            maskPixmapPyramid[scaleFactor] = previous->scaled(scaledSize, Qt::IgnoreAspectRatio, Qt::FastTransformation);
         }
 
         previous = &maskPixmapPyramid.rbegin()->second;
