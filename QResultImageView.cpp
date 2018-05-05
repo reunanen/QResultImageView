@@ -318,10 +318,7 @@ void QResultImageView::mouseReleaseEvent(QMouseEvent* event)
 
         Result newThingAnnotation;
 
-        QColor color = annotationColor;
-        color.setAlpha(255);
-
-        newThingAnnotation.pen.setColor(color);
+        newThingAnnotation.pen.setColor(annotationColor);
         newThingAnnotation.pen.setWidth(2);
 
         newThingAnnotation.contour.push_back(annotatedSourceRect.topLeft());
@@ -747,7 +744,13 @@ void QResultImageView::drawResultsToViewport()
             const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
 
             for (const Result& result : (i == 0 ? thingAnnotations : results)) {
-                resultPainter.setPen(result.pen);
+                QPen pen = result.pen;
+                if (i == 0) {
+                    QColor color = pen.color();
+                    color.setAlpha(255);
+                    pen.setColor(color);
+                }
+                resultPainter.setPen(pen);
                 if (!result.contour.empty()) {
                     std::vector<QPointF> scaledContour(result.contour.size());
                     bool allPointsAreSameWhenScaled = true;
