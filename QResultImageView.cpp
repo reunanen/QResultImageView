@@ -184,6 +184,10 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
+    if (!zoomEnabled) {
+        return;
+    }
+
     const int zoomMultiplier
             = (event->modifiers() & Qt::ShiftModifier)
             ? 20
@@ -233,6 +237,11 @@ void QResultImageView::zoom(int newZoomLevel, const QPointF* screenPoint)
 
         emit zoomed();
     }
+}
+
+void QResultImageView::setZoomEnabled(bool enabled)
+{
+    zoomEnabled = enabled;
 }
 
 void QResultImageView::resizeEvent(QResizeEvent* event)

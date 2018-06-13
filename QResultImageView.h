@@ -49,6 +49,7 @@ public:
     void panRelative(double offsetX, double offsetY); // TODO
 
     void zoom(int newZoomLevel, const QPointF* screenPoint = nullptr);
+    void setZoomEnabled(bool enabled);
 
     // The magnification required to fit the full source in the destination window when zoomLevel = 0.
     double getDefaultMagnification() const;
@@ -137,6 +138,7 @@ private:
     std::vector<QPolygonF> resultPolygons;
 
     int zoomLevel = 0;
+    bool zoomEnabled = true;
     double offsetX = 0;
     double offsetY = 0;
 
