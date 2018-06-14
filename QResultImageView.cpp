@@ -244,6 +244,11 @@ void QResultImageView::setZoomEnabled(bool enabled)
     zoomEnabled = enabled;
 }
 
+bool QResultImageView::getZoomEnabled() const
+{
+    return zoomEnabled;
+}
+
 void QResultImageView::resizeEvent(QResizeEvent* event)
 {
     if (!isnan(getScaleFactor())) {

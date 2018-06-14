@@ -50,6 +50,7 @@ public:
 
     void zoom(int newZoomLevel, const QPointF* screenPoint = nullptr);
     void setZoomEnabled(bool enabled);
+    bool getZoomEnabled() const;
 
     // The magnification required to fit the full source in the destination window when zoomLevel = 0.
     double getDefaultMagnification() const;
