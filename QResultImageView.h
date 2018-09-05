@@ -3,6 +3,7 @@
 
 #include <QWidget>
 #include <qpen.h>
+#include <memory>
 
 class QResultImageView : public QWidget
 {
@@ -30,7 +31,8 @@ public:
     void setImagePyramid(const std::vector<QImage>& imagePyramid, DelayedRedrawToken* delayedRedrawToken = nullptr);
 
     struct Result {
-        QPen pen;
+        QPen pen1;
+        std::shared_ptr<QPen> pen2; // optional
         std::vector<QPointF> contour;
     };
 

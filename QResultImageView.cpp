@@ -133,10 +133,14 @@ void QResultImageView::paintEvent(QPaintEvent* /*event*/)
     }
 
     if (isDrawingRectangle) {
-        QPen pen(rectangleSizeExceedsMinDimension() ? Qt::blue : Qt::gray);
-        pen.setWidth(2);
-        painter.setPen(pen);
-        painter.drawRect(getAnnotatedScreenRect());
+        for (int inner = 0; inner <= 1; ++inner) {
+            QPen pen(rectangleSizeExceedsMinDimension()
+                     ? (inner ? Qt::blue : Qt::white)
+                     : (inner ? Qt::gray : Qt::white));
+            pen.setWidth(inner ? 2 : 4);
+            painter.setPen(pen);
+            painter.drawRect(getAnnotatedScreenRect());
+        }
     }
 }
 
@@ -488,7 +492,6 @@ void QResultImageView::drawResultsToViewport()
             const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
 
             for (const Result& result : (i == 0 ? annotations : results)) {
-                resultPainter.setPen(result.pen);
                 if (!result.contour.empty()) {
                     std::vector<QPoint> scaledContour(result.contour.size());
                     bool allPointsAreSameWhenScaled = true;
@@ -507,11 +510,16 @@ void QResultImageView::drawResultsToViewport()
                             }
                         }
                     }
-                    if (allPointsAreSameWhenScaled) {
-                        resultPainter.drawPoint(firstPointScaled);
-                    }
-                    else {
-                        resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
+
+                    const bool hasPen2 = result.pen2.get() != nullptr;
+                    for (int drawPen2 = 0; drawPen2 <= hasPen2 ? 1 : 0; ++drawPen2) {
+                        resultPainter.setPen(drawPen2 ? *result.pen2 : result.pen1);
+                        if (allPointsAreSameWhenScaled) {
+                            resultPainter.drawPoint(firstPointScaled);
+                        }
+                        else {
+                            resultPainter.drawPolygon(scaledContour.data(), static_cast<int>(scaledContour.size()));
+                        }
                     }
                 }
             }
