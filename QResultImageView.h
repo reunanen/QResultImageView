@@ -117,7 +117,7 @@ private slots:
 private:
     void registerOrRedraw(DelayedRedrawToken* delayedRedrawToken, const Qt::TransformationMode& transformationMode);
     void updateViewport(Qt::TransformationMode transformationMode);
-    void drawResultsToViewport();
+    void drawResults(QPainter& painters, const QPointF& offset);
 
     const QRect getAnnotatedScreenRect();
 
@@ -171,7 +171,6 @@ private:
 
     QPixmap croppedSource;
     QPixmap scaledAndCroppedSource;
-    QPixmap scaledAndCroppedSourceWithResults;
 
     QRect croppedSourceRect;
     QRect destinationRect;

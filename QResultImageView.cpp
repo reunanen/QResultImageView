@@ -75,7 +75,6 @@ void QResultImageView::setAnnotations(const Results& annotations, DelayedRedrawT
     setResultPolygons();
 
     if (delayedRedrawToken == nullptr) {
-        drawResultsToViewport();
         update();
     }
     else {
@@ -89,7 +88,6 @@ void QResultImageView::setResults(const std::vector<Result>& results, DelayedRed
     setResultPolygons();
 
     if (delayedRedrawToken == nullptr) {
-        drawResultsToViewport();
         update();
     }
     else {
@@ -126,11 +124,13 @@ void QResultImageView::setTransformationMode(TransformationMode newTransformatio
 void QResultImageView::paintEvent(QPaintEvent* /*event*/)
 {
     QPainter painter(this);
-    painter.drawPixmap(destinationRect, scaledAndCroppedSourceWithResults);
+    painter.drawPixmap(destinationRect, scaledAndCroppedSource);
 
     if (!std::isnan(pixelSize)) {
         drawYardstick(painter);
     }
+
+    drawResults(painter, sourceToScreenIdeal(QPointF(0, 0)));
 
     if (isDrawingRectangle) {
         for (int inner = 0; inner <= 1; ++inner) {
@@ -416,10 +416,9 @@ void QResultImageView::redrawEverything(Qt::TransformationMode transformationMod
 
     if (!std::isnan(scaleFactor)) {
         updateViewport(transformationMode);
-        drawResultsToViewport();
     }
     else {
-        scaledAndCroppedSourceWithResults.fill(Qt::transparent);
+        scaledAndCroppedSource.fill(Qt::transparent);
     }
 
     update();
@@ -457,19 +456,12 @@ std::pair<double, const QPixmap*> QResultImageView::getSourcePixmap(double scale
     }
 }
 
-void QResultImageView::drawResultsToViewport()
+void QResultImageView::drawResults(QPainter& resultPainter, const QPointF& offset)
 {
     bool showAnnotations = annotationsVisible && !annotations.empty();
     bool showResults = resultsVisible && !results.empty();
 
-    if (!showAnnotations && !showResults) {
-        scaledAndCroppedSourceWithResults = scaledAndCroppedSource;
-    }
-    else {
-        scaledAndCroppedSourceWithResults = scaledAndCroppedSource.copy();
-
-        QPainter resultPainter(&scaledAndCroppedSourceWithResults);
-
+    {
         for (int i = 0; i < 2; ++i){
 
             if (i == 0 && !showAnnotations) {
@@ -480,16 +472,7 @@ void QResultImageView::drawResultsToViewport()
                 continue;
             }
 
-            const double scaleFactor = getScaleFactor();
-
-            const double zoomCenterX = sourceImage.width() / 2 - offsetX;
-            const double zoomCenterY = sourceImage.height() / 2 - offsetY;
-
-            const double srcVisibleWidth = getSourceImageVisibleWidth();
-            const double srcVisibleHeight = getSourceImageVisibleHeigth();
-
-            const double srcLeft = std::max(0.0, zoomCenterX - srcVisibleWidth / 2);
-            const double srcTop = std::max(0.0, zoomCenterY - srcVisibleHeight / 2);
+            const double scaleFactor = 1.0 / getImageScaler();
 
             for (const Result& result : (i == 0 ? annotations : results)) {
                 if (!result.contour.empty()) {
@@ -499,8 +482,8 @@ void QResultImageView::drawResultsToViewport()
                     for (size_t i = 0, end = result.contour.size(); i < end; ++i) {
                         const QPointF& point = result.contour[i];
                         QPoint& scaledPoint = scaledContour[i];
-                        scaledPoint.setX(static_cast<int>(std::round(point.x() - srcLeft) * scaleFactor));
-                        scaledPoint.setY(static_cast<int>(std::round(point.y() - srcTop) * scaleFactor));
+                        scaledPoint.setX(static_cast<int>(std::round(point.x() * scaleFactor) + offset.x()));
+                        scaledPoint.setY(static_cast<int>(std::round(point.y() * scaleFactor) + offset.y()));
                         if (i == 0) {
                             firstPointScaled = scaledPoint;
                         }
@@ -512,7 +495,7 @@ void QResultImageView::drawResultsToViewport()
                     }
 
                     const bool hasPen2 = result.pen2.get() != nullptr;
-                    for (int drawPen2 = 0; drawPen2 <= hasPen2 ? 1 : 0; ++drawPen2) {
+                    for (int drawPen2 = 0; drawPen2 <= (hasPen2 ? 1 : 0); ++drawPen2) {
                         resultPainter.setPen(drawPen2 ? *result.pen2 : result.pen1);
                         if (allPointsAreSameWhenScaled) {
                             resultPainter.drawPoint(firstPointScaled);
@@ -756,7 +739,6 @@ void QResultImageView::setResultsVisible(bool visible)
         resultsVisible = visible;
 
         if (!results.empty()) {
-            drawResultsToViewport();
             update();
         }
     }
@@ -767,7 +749,6 @@ void QResultImageView::setAnnotationsVisible(bool visible)
     if (annotationsVisible != visible) {
         annotationsVisible = visible;
 
-        drawResultsToViewport();
         update();
     }
 }
@@ -985,25 +966,10 @@ void QResultImageView::updateCursor()
 
 const QRect QResultImageView::getAnnotatedScreenRect()
 {
-    QPointF screenTopLeft = sourceToScreenIdeal(QPointF(0, 0));
-    QPointF screenBottomRight = sourceToScreenIdeal(QPointF(sourceImage.width(), sourceImage.height()));
-
-    const auto limitX = [&](int x) {
-        return std::max(static_cast<int>(std::round(screenTopLeft.x())), std::min(static_cast<int>(std::round(screenBottomRight.x())) - 1, x));
-    };
-    const auto limitY = [&](int y) {
-        return std::max(static_cast<int>(std::round(screenTopLeft.y())), std::min(static_cast<int>(std::round(screenBottomRight.y())) - 1, y));
-    };
-
-    int limitedStartX = limitX(rectangleStartX);
-    int limitedStartY = limitY(rectangleStartY);
-    int limitedCurrentX = limitX(rectangleCurrentX);
-    int limitedCurrentY = limitY(rectangleCurrentY);
-
-    int x1 = limitedStartX;
-    int y1 = limitedStartY;
-    int x2 = limitedCurrentX;
-    int y2 = limitedCurrentY;
+    int x1 = rectangleStartX;
+    int y1 = rectangleStartY;
+    int x2 = rectangleCurrentX;
+    int y2 = rectangleCurrentY;
 
     int w = std::abs(x2 - x1);
     int h = std::abs(y2 - y1);
@@ -1017,8 +983,8 @@ const QRect QResultImageView::getAnnotatedScreenRect()
         w = static_cast<int>(std::round(h * ratio));
     }
 
-    x2 = limitX((x2 > x1) ? x1 + w : x1 - w);
-    y2 = limitY((y2 > y1) ? y1 + h : y1 - h);
+    x2 = (x2 > x1) ? x1 + w : x1 - w;
+    y2 = (y2 > y1) ? y1 + h : y1 - h;
 
     if (x1 > x2) {
         std::swap(x1, x2);
@@ -1027,8 +993,8 @@ const QRect QResultImageView::getAnnotatedScreenRect()
         std::swap(y1, y2);
     }
 
-    x1 = limitX(x2 - w);
-    y1 = limitY(y2 - h);
+    x1 = x2 - w;
+    y1 = y2 - h;
 
     return QRect(x1, y1, w, h);
 }
