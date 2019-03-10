@@ -317,23 +317,26 @@ void QResultImageView::mouseReleaseEvent(QMouseEvent* event)
 
         const auto annotatedSourceRect = getAnnotatedSourceRect();
 
-        Result newThingAnnotation;
+        if (annotatedSourceRect.width() > 0 && annotatedSourceRect.height() > 0) {
+            Result newThingAnnotation;
 
-        newThingAnnotation.pen.setColor(annotationColor);
-        newThingAnnotation.pen.setWidth(2);
+            newThingAnnotation.pen.setColor(annotationColor);
+            newThingAnnotation.pen.setWidth(2);
 
-        newThingAnnotation.contour.push_back(annotatedSourceRect.topLeft());
-        newThingAnnotation.contour.push_back(annotatedSourceRect.topRight());
-        newThingAnnotation.contour.push_back(annotatedSourceRect.bottomRight());
-        newThingAnnotation.contour.push_back(annotatedSourceRect.bottomLeft());
+            newThingAnnotation.contour.push_back(annotatedSourceRect.topLeft());
+            newThingAnnotation.contour.push_back(annotatedSourceRect.topRight());
+            newThingAnnotation.contour.push_back(annotatedSourceRect.bottomRight());
+            newThingAnnotation.contour.push_back(annotatedSourceRect.bottomLeft());
 
-        thingAnnotations.push_back(newThingAnnotation);
+            thingAnnotations.push_back(newThingAnnotation);
 
-        setResultPolygons();
+            setResultPolygons();
+
+            emitSignal = true;
+        }
+
         drawResultsToViewport();
         update();
-
-        emitSignal = true;
     }
 
     if (maskDirty) {
