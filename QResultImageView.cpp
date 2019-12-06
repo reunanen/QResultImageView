@@ -227,7 +227,9 @@ void QResultImageView::mousePressEvent(QMouseEvent *event)
                     drawResultsToViewport();
                     update();
 
-                    setCursor(Qt::ArrowCursor);
+                    if (leftMouseMode == LeftMouseMode::EraseAnnotations) {
+                        setCursor(Qt::ArrowCursor);
+                    }
 
                     emit annotationUpdated();
                 }
