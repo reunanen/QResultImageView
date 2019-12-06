@@ -1286,9 +1286,9 @@ void QResultImageView::updateCursor()
 
             QPainter painter(&pixmap);
             for (int round = 0; round <= 1; ++round) {
-                QPen pen = round == 0
-                    ? QPen(Qt::black, 3)
-                    : QPen(Qt::white, 1);
+                QColor color = round == 0 ? Qt::black : Qt::white;
+                color.setAlpha(128);
+                QPen pen(color, round == 0 ? 3 : 1);
                 painter.setPen(pen);
                 painter.drawLine(markingRadius, 0, markingRadius, pixmap.height() - 1);
                 painter.drawLine(0, markingRadius, pixmap.width() - 1, markingRadius);
