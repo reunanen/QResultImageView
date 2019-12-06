@@ -1280,9 +1280,27 @@ void QResultImageView::setRightMouseMode(RightMouseMode rightMouseMode)
 void QResultImageView::updateCursor()
 {
     if (annotationMode == AnnotationMode::Things) {
+        const auto getAnnotationCursor = [this]() {
+            QPixmap pixmap(2 * markingRadius + 1, 2 * markingRadius + 1);
+            pixmap.fill(Qt::transparent);
+
+            QPainter painter(&pixmap);
+            for (int round = 0; round <= 1; ++round) {
+                QPen pen = round == 0
+                    ? QPen(Qt::black, 3)
+                    : QPen(Qt::white, 1);
+                painter.setPen(pen);
+                painter.drawLine(markingRadius, 0, markingRadius, pixmap.height() - 1);
+                painter.drawLine(0, markingRadius, pixmap.width() - 1, markingRadius);
+            }
+
+            QCursor cursor(pixmap, markingRadius, markingRadius);
+            return cursor;
+        };
+
         switch(leftMouseMode) {
         case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-        case LeftMouseMode::Annotate: setCursor(Qt::ArrowCursor); break;
+        case LeftMouseMode::Annotate: setCursor(getAnnotationCursor()); break;
         case LeftMouseMode::EraseAnnotations: setCursor(getThingAnnotationIndex(mapFromGlobal(QCursor::pos())) == -1 ? Qt::ArrowCursor : Qt::CrossCursor); break;
         default: Q_ASSERT(false);
         }
