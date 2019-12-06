@@ -151,6 +151,19 @@ void QResultImageView::paintEvent(QPaintEvent* /*event*/)
         drawYardstick(painter);
     }
 
+    if (annotationMode == AnnotationMode::Things && leftMouseMode == LeftMouseMode::Annotate) {
+        if (hasPreviousMouseCoordinates) {
+            const auto modeBefore = painter.compositionMode();
+            painter.setCompositionMode(QPainter::RasterOp_SourceXorDestination);
+            painter.setPen(QColor(0xff, 0xff, 0xff));
+
+            QRect r = rect();
+            painter.drawLine(previousMouseX, 0, previousMouseX, r.height());
+            painter.drawLine(0, previousMouseY, r.width(), previousMouseY);
+            painter.setCompositionMode(modeBefore);
+        }
+    }
+
     if (isDrawingRectangle) {
         QColor color = annotationColor;
         color.setAlpha(255);
@@ -255,6 +268,10 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     checkMousePan(event);
     checkMouseOnResult(event);
 
+    if (annotationMode == AnnotationMode::Things && leftMouseMode == LeftMouseMode::Annotate) {
+        update();
+    }
+
     if (annotationMode == AnnotationMode::Things && leftMouseMode == LeftMouseMode::EraseAnnotations) {
         const size_t thingAnnotationIndex = getThingAnnotationIndex(event->pos());
         if (thingAnnotationIndex != -1) {
@@ -351,6 +368,9 @@ void QResultImageView::mouseReleaseEvent(QMouseEvent* event)
 
 void QResultImageView::leaveEvent(QEvent*)
 {
+    hasPreviousMouseCoordinates = false;
+    update();
+
     emit mouseLeft();
 }
 
@@ -1270,6 +1290,7 @@ void QResultImageView::setLeftMouseMode(LeftMouseMode leftMouseMode)
 {
     this->leftMouseMode = leftMouseMode;
     updateCursor();
+    update();
 }
 
 void QResultImageView::setRightMouseMode(RightMouseMode rightMouseMode)
@@ -1280,9 +1301,16 @@ void QResultImageView::setRightMouseMode(RightMouseMode rightMouseMode)
 void QResultImageView::updateCursor()
 {
     if (annotationMode == AnnotationMode::Things) {
+        const auto getEmptyCursor = [this]() {
+            QPixmap pixmap(1, 1);
+            pixmap.fill(Qt::transparent);
+            QCursor cursor(pixmap, markingRadius, markingRadius);
+            return cursor;
+        };
+
         switch(leftMouseMode) {
         case LeftMouseMode::Pan: setCursor(Qt::SizeAllCursor); break;
-        case LeftMouseMode::Annotate: setCursor(Qt::ArrowCursor); break;
+        case LeftMouseMode::Annotate: setCursor(getEmptyCursor()); break;
         case LeftMouseMode::EraseAnnotations: setCursor(getThingAnnotationIndex(mapFromGlobal(QCursor::pos())) == -1 ? Qt::ArrowCursor : Qt::CrossCursor); break;
         default: Q_ASSERT(false);
         }
