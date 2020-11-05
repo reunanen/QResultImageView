@@ -5,6 +5,7 @@
 #include <QMessageBox>
 #include <qtimer.h>
 #include <cmath>
+#include <stdexcept>
 #include "qt-image-flood-fill/qfloodfill.h"
 
 QResultImageView::DelayedRedrawToken::DelayedRedrawToken()
