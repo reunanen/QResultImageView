@@ -207,14 +207,11 @@ private:
     double offsetY = 0;
 
     bool hasPreviousMouseCoordinates = false;
-    int previousMouseX = 0;
-    int previousMouseY = 0;
+    QPointF previousMouse;
 
     bool isDrawingRectangle = false;
-    int rectangleStartX = 0;
-    int rectangleStartY = 0;
-    int rectangleCurrentX = 0;
-    int rectangleCurrentY = 0;
+    QPointF rectangleStart;
+    QPointF rectangleCurrent;
 
     size_t mouseOnResultIndex = -1;
 

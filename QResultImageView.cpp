@@ -159,8 +159,8 @@ void QResultImageView::paintEvent(QPaintEvent* /*event*/)
             painter.setPen(QColor(0xff, 0xff, 0xff));
 
             QRect r = rect();
-            painter.drawLine(previousMouseX, 0, previousMouseX, r.height());
-            painter.drawLine(0, previousMouseY, r.width(), previousMouseY);
+            painter.drawLine(QPointF(previousMouse.x(), 0.0), QPointF(previousMouse.x(), static_cast<qreal>(r.height())));
+            painter.drawLine(QPointF(0.0, previousMouse.y()), QPointF(static_cast<qreal>(r.width()), previousMouse.y()));
             painter.setCompositionMode(modeBefore);
         }
     }
@@ -220,7 +220,7 @@ void QResultImageView::mousePressEvent(QMouseEvent *event)
                 update();
             }
             else if (isErase()) {
-                const size_t thingAnnotationIndex = getThingAnnotationIndex(event->pos());
+                const size_t thingAnnotationIndex = getThingAnnotationIndex(event->position());
                 if (thingAnnotationIndex != -1) {
                     thingAnnotations.erase(thingAnnotations.begin() + thingAnnotationIndex);
 
@@ -246,17 +246,14 @@ void QResultImageView::mousePressEvent(QMouseEvent *event)
                 }
 
                 isDrawingRectangle = true;
-                rectangleStartX = event->x();
-                rectangleStartY = event->y();
-                rectangleCurrentX = rectangleStartX;
-                rectangleCurrentY = rectangleStartY;
+                rectangleStart = event->position();
+                rectangleCurrent = rectangleStart;
             }
             else if (isRightButton(event) && rightMouseMode == RightMouseMode::ResetView) {
                 resetZoomAndPan();
             }
 
-            previousMouseX = event->x();
-            previousMouseY = event->y();
+            previousMouse = event->position();
         }
     }
 }
@@ -276,7 +273,7 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
     }
 
     if (annotationMode == AnnotationMode::Things && leftMouseMode == LeftMouseMode::EraseAnnotations) {
-        const size_t thingAnnotationIndex = getThingAnnotationIndex(event->pos());
+        const size_t thingAnnotationIndex = getThingAnnotationIndex(event->position());
         if (thingAnnotationIndex != -1) {
             setCursor(Qt::CrossCursor);
         }
@@ -285,7 +282,7 @@ void QResultImageView::mouseMoveEvent(QMouseEvent *event)
         }
     }
 
-    const QPointF sourceCoordinate = screenToSourceActual(event->pos());
+    const QPointF sourceCoordinate = screenToSourceActual(event->position());
 
     // Need to truncate here; rounding isn't the correct thing to do
     QPoint point(static_cast<int>(sourceCoordinate.x()), static_cast<int>(sourceCoordinate.y()));
@@ -332,8 +329,7 @@ void QResultImageView::mouseReleaseEvent(QMouseEvent* event)
 
     if (isDrawingRectangle) {
         isDrawingRectangle = false;
-        rectangleCurrentX = event->x();
-        rectangleCurrentY = event->y();
+        rectangleCurrent = event->position();
 
         const auto annotatedSourceRect = getAnnotatedSourceRect();
 
@@ -394,8 +390,8 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
         if (isPan()) {
             if (hasPreviousMouseCoordinates) {
                 const double imageScaler = getImageScaler();
-                offsetX += (event->x() - previousMouseX) * imageScaler;
-                offsetY += (event->y() - previousMouseY) * imageScaler;
+                offsetX += (event->position().x() - previousMouse.x()) * imageScaler;
+                offsetY += (event->position().y() - previousMouse.y()) * imageScaler;
                 limitOffset();
                 redrawEverything(getInitialTransformationMode());
                 considerActivatingSmoothTransformationTimer();
@@ -409,8 +405,7 @@ void QResultImageView::checkMousePan(const QMouseEvent *event)
     }
 
     hasPreviousMouseCoordinates = true;
-    previousMouseX = event->x();
-    previousMouseY = event->y();
+    previousMouse = event->position();
 }
 
 void QResultImageView::checkMouseMark(const QMouseEvent* event)
@@ -438,8 +433,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
     if (annotationMode == AnnotationMode::Things) {
         if (isAnnotating) {
             if (isDrawingRectangle) {
-                rectangleCurrentX = event->x();
-                rectangleCurrentY = event->y();
+                rectangleCurrent = event->position();
                 update();
                 emit annotationUpdating();
             }
@@ -454,7 +448,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
             const double effectiveMarkingRadius = markingRadius * getImageScaler();
 
-            const QPointF screenPoint(event->x(), event->y());
+            const QPointF screenPoint = event->position();
             const QPointF sourcePoint = screenToSourceActual(screenPoint);
 
             const auto draw = [&](QPixmap& pixmap, double scaleFactor) {
@@ -482,7 +476,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
                     const auto getStartPoint = [&]() {
                         if (hasPreviousMouseCoordinates) {
-                            const QPointF previousSourcePoint(screenToSourceActual(QPoint(previousMouseX, previousMouseY)));
+                            const QPointF previousSourcePoint(screenToSourceActual(previousMouse));
                             const QPoint startPoint(static_cast<int>(previousSourcePoint.x() * scaleFactor), static_cast<int>(previousSourcePoint.y() * scaleFactor));
                             return startPoint;
                         }
@@ -557,7 +551,7 @@ void QResultImageView::checkMouseMark(const QMouseEvent* event)
 
 void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 {
-    const QPointF screenPoint(event->x(), event->y());
+    const QPointF screenPoint = event->position();
     const QPointF sourcePoint = screenToSourceActual(screenPoint);
 
     size_t newMouseOnResultIndex = -1;
@@ -583,10 +577,12 @@ void QResultImageView::checkMouseOnResult(const QMouseEvent *event)
 
 void QResultImageView::wheelEvent(QWheelEvent* event)
 {
+    const int delta = event->angleDelta().y();
+
     if ((event->modifiers() & Qt::ControlModifier) && (leftMouseMode == LeftMouseMode::Annotate || leftMouseMode == LeftMouseMode::EraseAnnotations)) {
         // Ask the main application to change the marking radius
-        const int magnitude = std::max(abs(event->delta()) * markingRadius / 1000, 1);
-        const int sign = event->delta() > 0 ? 1 : (event->delta() < 0 ? -1 : 0);
+        const int magnitude = std::max(abs(delta) * markingRadius / 1000, 1);
+        const int sign = delta > 0 ? 1 : (delta < 0 ? -1 : 0);
         emit newMarkingRadius(markingRadius + sign * magnitude);
     }
     else {
@@ -595,9 +591,9 @@ void QResultImageView::wheelEvent(QWheelEvent* event)
                 ? 20
                 : 4;
 
-        const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * event->delta(), 0), getMaxZoomLevel());
+        const int newZoomLevel = std::min(std::max(zoomLevel + zoomMultiplier * delta, 0), getMaxZoomLevel());
 
-        const QPointF point = event->posF();
+        const QPointF point = event->position();
 
         zoom(newZoomLevel, &point);
     }
@@ -1383,17 +1379,17 @@ const QRect QResultImageView::getAnnotatedScreenRect()
     QPointF screenTopLeft = sourceToScreenIdeal(QPointF(0, 0));
     QPointF screenBottomRight = sourceToScreenIdeal(QPointF(sourceImage.width(), sourceImage.height()));
 
-    const auto limitX = [&](int x) {
-        return std::max(static_cast<int>(std::round(screenTopLeft.x())), std::min(static_cast<int>(std::round(screenBottomRight.x())) - 1, x));
+    const auto limitX = [&](qreal x) {
+        return static_cast<int>(std::round(std::max(screenTopLeft.x(), std::min(screenBottomRight.x() - 1, x))));
     };
-    const auto limitY = [&](int y) {
-        return std::max(static_cast<int>(std::round(screenTopLeft.y())), std::min(static_cast<int>(std::round(screenBottomRight.y())) - 1, y));
+    const auto limitY = [&](qreal y) {
+        return static_cast<int>(std::round(std::max(screenTopLeft.y(), std::min(screenBottomRight.y() - 1, y))));
     };
 
-    int limitedStartX = limitX(rectangleStartX);
-    int limitedStartY = limitY(rectangleStartY);
-    int limitedCurrentX = limitX(rectangleCurrentX);
-    int limitedCurrentY = limitY(rectangleCurrentY);
+    int limitedStartX = limitX(rectangleStart.x());
+    int limitedStartY = limitY(rectangleStart.y());
+    int limitedCurrentX = limitX(rectangleCurrent.x());
+    int limitedCurrentY = limitY(rectangleCurrent.y());
 
     int x1 = limitedStartX;
     int y1 = limitedStartY;
