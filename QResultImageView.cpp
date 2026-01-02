@@ -1374,27 +1374,27 @@ void QResultImageView::setBucketCursor(const QCursor& cursor)
     bucketCursor = cursor;
 }
 
-const QRect QResultImageView::getAnnotatedScreenRect()
+const QRectF QResultImageView::getAnnotatedScreenRect()
 {
     QPointF screenTopLeft = sourceToScreenIdeal(QPointF(0, 0));
     QPointF screenBottomRight = sourceToScreenIdeal(QPointF(sourceImage.width(), sourceImage.height()));
 
     const auto limitX = [&](qreal x) {
-        return static_cast<int>(std::round(std::max(screenTopLeft.x(), std::min(screenBottomRight.x() - 1, x))));
+        return std::max(screenTopLeft.x(), std::min(screenBottomRight.x() - 1, x));
     };
     const auto limitY = [&](qreal y) {
-        return static_cast<int>(std::round(std::max(screenTopLeft.y(), std::min(screenBottomRight.y() - 1, y))));
+        return std::max(screenTopLeft.y(), std::min(screenBottomRight.y() - 1, y));
     };
 
-    int limitedStartX = limitX(rectangleStart.x());
-    int limitedStartY = limitY(rectangleStart.y());
-    int limitedCurrentX = limitX(rectangleCurrent.x());
-    int limitedCurrentY = limitY(rectangleCurrent.y());
+    auto limitedStartX = limitX(rectangleStart.x());
+    auto limitedStartY = limitY(rectangleStart.y());
+    auto limitedCurrentX = limitX(rectangleCurrent.x());
+    auto limitedCurrentY = limitY(rectangleCurrent.y());
 
-    int x1 = limitedStartX;
-    int y1 = limitedStartY;
-    int x2 = limitedCurrentX;
-    int y2 = limitedCurrentY;
+    auto x1 = limitedStartX;
+    auto y1 = limitedStartY;
+    auto x2 = limitedCurrentX;
+    auto y2 = limitedCurrentY;
 
     if (x1 > x2) {
         std::swap(x1, x2);
@@ -1403,12 +1403,12 @@ const QRect QResultImageView::getAnnotatedScreenRect()
         std::swap(y1, y2);
     }
 
-    return QRect(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
+    return QRectF(x1, y1, x2 - x1 + 1, y2 - y1 + 1);
 }
 
 const QRectF QResultImageView::getAnnotatedSourceRect()
 {
-    const QRect screenRect = getAnnotatedScreenRect();
+    const QRectF screenRect = getAnnotatedScreenRect();
 
     const QPointF sourceTopLeft = screenToSourceIdeal(screenRect.topLeft());
     const QPointF sourceBottomRight = screenToSourceIdeal(screenRect.bottomRight());

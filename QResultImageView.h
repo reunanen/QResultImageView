@@ -134,7 +134,7 @@ private:
     void updateViewport(Qt::TransformationMode transformationMode);
     void drawResultsToViewport();
 
-    const QRect getAnnotatedScreenRect();
+    const QRectF getAnnotatedScreenRect();
     const QRectF getAnnotatedSourceRect();
 
     double getScaleFactor() const;
